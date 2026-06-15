@@ -14,3 +14,7 @@ node_modules
 .next/
 .DS_Store
 /lib/generated/prisma
+__pycache__/
+*.pyc
+*.pyo
+backend/venv/

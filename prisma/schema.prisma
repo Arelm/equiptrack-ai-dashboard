@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  industry  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  assets     Asset[]
+  locations  Location[]
+  workOrders WorkOrder[]
+  parts      PartsInventory[]
+  alerts     Alert[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  role           Role     @default(TECHNICIAN)
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  assignments  WorkOrderAssignment[]
+  logs         MaintenanceLog[]
+}
+
+model Location {
+  id             String   @id @default(cuid())
+  name           String
+  address        String?
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  assets       Asset[]
+  workOrders   WorkOrder[]
+}
+
+model Asset {
+  id             String      @id @default(cuid())
+  name           String
+  serialNumber   String?
+  category       String
+  status         AssetStatus @default(OPERATIONAL)
+  organizationId String
+  locationId     String?
+  purchaseDate   DateTime?
+  warrantyExpiry DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  location     Location?        @relation(fields: [locationId], references: [id])
+  workOrders   WorkOrder[]
+  logs         MaintenanceLog[]
+  alerts       Alert[]
+}
+
+model WorkOrder {
+  id             String          @id @default(cuid())
+  title          String
+  description    String?
+  priority       Priority        @default(MEDIUM)
+  status         WorkOrderStatus @default(OPEN)
+  organizationId String
+  assetId        String?
+  locationId     String?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  asset        Asset?                @relation(fields: [assetId], references: [id])
+  location     Location?             @relation(fields: [locationId], references: [id])
+  assignments  WorkOrderAssignment[]
+  logs         MaintenanceLog[]
+}
+
+model WorkOrderAssignment {
+  id          String   @id @default(cuid())
+  workOrderId String
+  userId      String
+  assignedAt  DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model MaintenanceLog {
+  id          String   @id @default(cuid())
+  workOrderId String
+  assetId     String
+  userId      String
+  notes       String?
+  hoursSpent  Float?
+  createdAt   DateTime @default(now())
+
+  workOrder WorkOrder   @relation(fields: [workOrderId], references: [id])
+  asset     Asset       @relation(fields: [assetId], references: [id])
+  user      User        @relation(fields: [userId], references: [id])
+  partsUsed PartsUsed[]
+}
+
+model PartsInventory {
+  id             String   @id @default(cuid())
+  name           String
+  partNumber     String?
+  quantity       Int      @default(0)
+  reorderLevel   Int      @default(5)
+  unitCost       Float?
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  partsUsed    PartsUsed[]
+}
+
+model PartsUsed {
+  id               String   @id @default(cuid())
+  maintenanceLogId String
+  partId           String
+  quantityUsed     Int
+  createdAt        DateTime @default(now())
+
+  maintenanceLog MaintenanceLog @relation(fields: [maintenanceLogId], references: [id])
+  part           PartsInventory @relation(fields: [partId], references: [id])
+}
+
+model Alert {
+  id             String    @id @default(cuid())
+  type           AlertType
+  message        String
+  severity       Severity  @default(MEDIUM)
+  isRead         Boolean   @default(false)
+  organizationId String
+  assetId        String?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  asset        Asset?       @relation(fields: [assetId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  TECHNICIAN
+}
+
+enum AssetStatus {
+  OPERATIONAL
+  UNDER_MAINTENANCE
+  DECOMMISSIONED
+  FAULTY
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertType {
+  MAINTENANCE_DUE
+  PART_LOW
+  ASSET_FAULT
+  WARRANTY_EXPIRY
+  WORK_ORDER_OVERDUE
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}

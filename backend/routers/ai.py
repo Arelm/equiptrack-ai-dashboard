@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Asset, WorkOrder, Alert, AlertTypeEnum, SeverityEnum
 from pydantic import BaseModel
+from typing import Optional
 import anthropic
 import os
 import uuid

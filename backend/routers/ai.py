@@ -17,7 +17,6 @@ class AIAnalysisRequest(BaseModel):
     organizationId: str
     assetId: Optional[str] = None
 
-from typing import Optional
 
 @router.post("/analyze")
 def analyze_assets(request: AIAnalysisRequest, db: Session = Depends(get_db)):

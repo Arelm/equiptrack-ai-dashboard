@@ -19,7 +19,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-)
+
 
 app.include_router(assets.router, prefix="/api/assets", tags=["Assets"])
 app.include_router(workorders.router, prefix="/api/workorders", tags=["Work Orders"])

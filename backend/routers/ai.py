@@ -89,3 +89,45 @@ def generate_alerts(organizationId: str, db: Session = Depends(get_db)):
 
     db.commit()
     return {"alerts_created": len(alerts_created), "assets": alerts_created}
+
+class TicketAnalysisRequest(BaseModel):
+    ticket_id: str
+    asset: str
+    client: str
+    facility: str
+    priority: str
+    status: str
+    technician: Optional[str] = None
+    fault: Optional[str] = None
+
+
+@router.post("/analyze-ticket")
+def analyze_ticket(request: TicketAnalysisRequest):
+    prompt = f"""You are an expert HVAC and field service maintenance engineer.
+
+Analyze this service ticket and provide a concise predictive maintenance recommendation:
+
+Ticket ID: {request.ticket_id}
+Client: {request.client}
+Facility: {request.facility}
+Asset: {request.asset}
+Priority: {request.priority}
+Status: {request.status}
+Assigned Technician: {request.technician or 'Unassigned'}
+Fault Description: {request.fault or 'No fault description provided'}
+
+Provide:
+1. Most likely root cause
+2. Recommended immediate actions for the technician
+3. Parts/tools to bring on site
+4. Preventive measures to avoid recurrence
+
+Be specific and practical."""
+
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return {"analysis": message.content[0].text}

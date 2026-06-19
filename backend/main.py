@@ -10,10 +10,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://equiptrack-ai-dashboard.vercel.app",
+        "https://equiptrack-ai-dashboard-git-main-inah-okois-projects.vercel.app",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
 )
 
 app.include_router(assets.router, prefix="/api/assets", tags=["Assets"])

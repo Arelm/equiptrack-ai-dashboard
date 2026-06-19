@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Ticket as TicketIcon, Users, PackageX, AlarmClock } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { PriorityBadge, StatusBadge } from "@/components/badges"
@@ -100,8 +101,10 @@ export default function OperationsDashboard() {
               <tbody>
                 {tickets.map((t) => (
                   <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                    <td className="px-5 py-3 font-mono text-xs font-medium text-primary">{t.id}</td>
-                    <td className="px-5 py-3 font-medium text-foreground">{t.client}</td>
+  <td className="px-5 py-3 font-mono text-xs font-medium text-primary">
+    <Link href={`/tickets/${t.id}`} className="hover:underline cursor-pointer">{t.id}</Link>
+  </td>
+  <td className="px-5 py-3 font-medium text-foreground">{t.client}</td>
                     <td className="px-5 py-3 text-muted-foreground">{t.facility}</td>
                     <td className="px-5 py-3 text-muted-foreground">{t.asset}</td>
                     <td className="px-5 py-3">

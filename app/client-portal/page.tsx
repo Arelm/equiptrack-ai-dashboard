@@ -10,7 +10,6 @@ import {
   mapStatus,
 } from "@/lib/api"
 
-const clientName = "Northwind Logistics"
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -34,9 +33,9 @@ export default async function ClientPortalPage() {
   return (
     <>
       <PageHeader
-        title="Client Portal"
-        description={`Signed in as ${clientName} · Submit and track service requests.`}
-      />
+  title="Client Portal"
+  description={`Signed in as ${org.name} · Submit and track service requests.`}
+/>
 
       <div className="grid grid-cols-1 gap-6 p-6 lg:grid-cols-5">
         <section className="lg:col-span-2">

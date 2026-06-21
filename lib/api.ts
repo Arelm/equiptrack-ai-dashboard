@@ -39,6 +39,17 @@ export function mapPriority(backendPriority: string): Priority {
   return PRIORITY_MAP[backendPriority] ?? "Medium"
 }
 
+const PRIORITY_REVERSE_MAP: Record<Priority, string> = {
+  High: "HIGH",
+  Medium: "MEDIUM",
+  Low: "LOW",
+}
+
+// Frontend display string ("High"/"Medium"/"Low") -> backend enum ("HIGH"/"MEDIUM"/"LOW")
+export function toBackendPriority(priority: Priority): string {
+  return PRIORITY_REVERSE_MAP[priority] ?? "MEDIUM"
+}
+
 export function mapStatus(backendStatus: string): Status {
   return STATUS_MAP[backendStatus] ?? "Open"
 }

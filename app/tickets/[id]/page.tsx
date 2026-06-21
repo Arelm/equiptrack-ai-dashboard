@@ -1,47 +1,109 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
-import { tickets } from '@/lib/data'
 import { PriorityBadge, StatusBadge } from '@/components/badges'
 import { ArrowLeft, Bot, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import {
+  fetchWorkOrderById,
+  fetchAssets,
+  fetchLocations,
+  fetchOrganizations,
+  mapPriority,
+  mapStatus,
+  type BackendWorkOrder,
+} from '@/lib/api'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+
+type DisplayTicket = {
+  id: string
+  client: string
+  facility: string
+  asset: string
+  priority: ReturnType<typeof mapPriority>
+  status: ReturnType<typeof mapStatus>
+  technician: string | null
+  created: string
+  fault?: string
+}
 
 export default function TicketDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const ticket = tickets.find((t) => t.id === id)
+  const ticketId = Array.isArray(id) ? id[0] : id
+
+  const [ticket, setTicket] = useState<DisplayTicket | null>(null)
+  const [loadingTicket, setLoadingTicket] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+
   const [analysis, setAnalysis] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  if (!ticket) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        Ticket not found.
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!ticketId) return
+
+    let cancelled = false
+
+    async function load() {
+      try {
+        const wo: BackendWorkOrder = await fetchWorkOrderById(ticketId!)
+
+        // Resolve org/asset/location names (the work order only stores ids)
+        const [orgs, assets, locations] = await Promise.all([
+          fetchOrganizations(),
+          fetchAssets(wo.organizationId),
+          fetchLocations(wo.organizationId),
+        ])
+        const org = orgs.find((o) => o.id === wo.organizationId)
+        const asset = assets.find((a) => a.id === wo.assetId)
+        const location = locations.find((l) => l.id === wo.locationId)
+
+        if (cancelled) return
+
+        setTicket({
+          id: wo.id,
+          client: org?.name ?? '—',
+          facility: location?.name ?? '—',
+          asset: asset?.name ?? '—',
+          priority: mapPriority(wo.priority),
+          status: mapStatus(wo.status),
+          technician: null,
+          created: wo.createdAt,
+          fault: wo.description ?? undefined,
+        })
+      } catch (err) {
+        if (!cancelled) setNotFound(true)
+      } finally {
+        if (!cancelled) setLoadingTicket(false)
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [ticketId])
 
   async function runAIAnalysis() {
+    if (!ticket || !API_BASE) return
     setLoading(true)
     setAnalysis(null)
     try {
-      const res = await fetch(
-        'https://equiptrack-ai-dashboard-production.up.railway.app/api/ai/analyze-ticket',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ticket_id: ticket!.id,
-            asset: ticket!.asset,
-            client: ticket!.client,
-            facility: ticket!.facility,
-            priority: ticket!.priority,
-            status: ticket!.status,
-            technician: ticket!.technician,
-            fault: ticket!.fault ?? 'No fault description provided',
-          }),
-        }
-      )
+      const res = await fetch(`${API_BASE}/api/ai/analyze-ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_id: ticket.id,
+          asset: ticket.asset,
+          client: ticket.client,
+          facility: ticket.facility,
+          priority: ticket.priority,
+          status: ticket.status,
+          technician: ticket.technician,
+          fault: ticket.fault ?? 'No fault description provided',
+        }),
+      })
       const data = await res.json()
       setAnalysis(data.analysis ?? data.message ?? JSON.stringify(data))
     } catch (err) {
@@ -49,6 +111,23 @@ export default function TicketDetailPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (loadingTicket) {
+    return (
+      <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2">
+        <Loader2 size={16} className="animate-spin" />
+        Loading ticket...
+      </div>
+    )
+  }
+
+  if (notFound || !ticket) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        Ticket not found.
+      </div>
+    )
   }
 
   return (
@@ -88,7 +167,13 @@ export default function TicketDetailPage() {
           </div>
           <div>
             <p className="text-muted-foreground">Created</p>
-            <p className="font-medium">{ticket.created}</p>
+            <p className="font-medium">
+              {new Date(ticket.created).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </p>
           </div>
           {ticket.fault && (
             <div className="col-span-2">

@@ -37,7 +37,13 @@ def get_workorder(wo_id: str, db: Session = Depends(get_db)):
 
 @router.post("/")
 def create_workorder(wo: WorkOrderCreate, db: Session = Depends(get_db)):
-    db_wo = WorkOrder(id=str(uuid.uuid4()), **wo.model_dump())
+    now = datetime.utcnow()
+    db_wo = WorkOrder(
+        id=str(uuid.uuid4()),
+        createdAt=now,
+        updatedAt=now,
+        **wo.model_dump(),
+    )
     db.add(db_wo)
     db.commit()
     db.refresh(db_wo)
@@ -50,6 +56,7 @@ def update_workorder(wo_id: str, update: WorkOrderUpdate, db: Session = Depends(
         raise HTTPException(status_code=404, detail="Work order not found")
     for key, value in update.model_dump(exclude_none=True).items():
         setattr(wo, key, value)
+    wo.updatedAt = datetime.utcnow()
     db.commit()
     db.refresh(wo)
     return wo

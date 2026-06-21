@@ -1,16 +1,36 @@
 import { PageHeader } from "@/components/page-header"
 import { ServiceRequestForm } from "@/components/service-request-form"
 import { PriorityBadge, StatusBadge } from "@/components/badges"
-import { tickets } from "@/lib/data"
+import {
+  fetchPrimaryOrganization,
+  fetchWorkOrders,
+  fetchAssets,
+  fetchLocations,
+  mapPriority,
+  mapStatus,
+} from "@/lib/api"
 
 const clientName = "Northwind Logistics"
-const clientTickets = tickets.filter((t) => t.client === clientName)
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
-export default function ClientPortalPage() {
+export default async function ClientPortalPage() {
+  const org = await fetchPrimaryOrganization()
+  const [workOrders, assets, locations] = await Promise.all([
+    fetchWorkOrders(org.id),
+    fetchAssets(org.id),
+    fetchLocations(org.id),
+  ])
+
+  const assetById = new Map(assets.map((a) => [a.id, a]))
+  const locationById = new Map(locations.map((l) => [l.id, l]))
+
+  const clientTickets = [...workOrders].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )
+
   return (
     <>
       <PageHeader
@@ -49,24 +69,32 @@ export default function ClientPortalPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {clientTickets.map((t) => (
-                    <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                      <td className="px-5 py-3 font-mono text-xs font-medium text-primary">{t.id}</td>
-                      <td className="px-5 py-3 text-foreground">
-                        <span className="font-medium">{t.asset}</span>
-                        <span className="block text-xs text-muted-foreground">{t.facility}</span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <PriorityBadge priority={t.priority} />
-                      </td>
-                      <td className="px-5 py-3">
-                        <StatusBadge status={t.status} />
-                      </td>
-                      <td className="px-5 py-3 whitespace-nowrap text-muted-foreground">
-                        {formatDate(t.created)}
-                      </td>
-                    </tr>
-                  ))}
+                  {clientTickets.map((t) => {
+                    const asset = t.assetId ? assetById.get(t.assetId) : undefined
+                    const location = t.locationId ? locationById.get(t.locationId) : undefined
+                    return (
+                      <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                        <td className="px-5 py-3 font-mono text-xs font-medium text-primary">
+                          {t.id.slice(0, 8).toUpperCase()}
+                        </td>
+                        <td className="px-5 py-3 text-foreground">
+                          <span className="font-medium">{asset?.name ?? "—"}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {location?.name ?? ""}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          <PriorityBadge priority={mapPriority(t.priority)} />
+                        </td>
+                        <td className="px-5 py-3">
+                          <StatusBadge status={mapStatus(t.status)} />
+                        </td>
+                        <td className="px-5 py-3 whitespace-nowrap text-muted-foreground">
+                          {formatDate(t.createdAt)}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

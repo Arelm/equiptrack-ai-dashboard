@@ -188,4 +188,117 @@ export default function TicketDetailPage() {
             <p className="font-medium">{ticket.asset}</p>
           </div>
           <div>
-            <p className="text-muted-foregro
+            <p className="text-muted-foreground">Technician</p>
+            <p className="font-medium">{ticket.technician ?? 'Unassigned'}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Created</p>
+            <p className="font-medium">
+              {new Date(ticket.created).toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric',
+              })}
+            </p>
+          </div>
+          {ticket.fault && (
+            <div className="col-span-2">
+              <p className="text-muted-foreground">Fault Description</p>
+              <p className="font-medium">{ticket.fault}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Service History */}
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History size={20} className="text-primary" />
+            <h2 className="font-semibold">Asset Service History</h2>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {serviceHistory.length} previous job{serviceHistory.length !== 1 ? 's' : ''} on this asset
+          </span>
+        </div>
+
+        {serviceHistory.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No previous service records for this asset.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="pb-2 pr-4 font-medium">Ticket ID</th>
+                  <th className="pb-2 pr-4 font-medium">Priority</th>
+                  <th className="pb-2 pr-4 font-medium">Status</th>
+                  <th className="pb-2 pr-4 font-medium">Date</th>
+                  <th className="pb-2 font-medium">Fault</th>
+                </tr>
+              </thead>
+              <tbody>
+                {serviceHistory.map((h) => (
+                  <tr key={h.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-4 font-mono text-xs font-medium text-primary">
+                      {h.id.slice(0, 8).toUpperCase()}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <PriorityBadge priority={h.priority} />
+                    </td>
+                    <td className="py-2 pr-4">
+                      <StatusBadge status={h.status} />
+                    </td>
+                    <td className="py-2 pr-4 whitespace-nowrap text-muted-foreground">
+                      {new Date(h.created).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                      })}
+                    </td>
+                    <td className="py-2 text-muted-foreground">
+                      {h.fault ?? <span className="italic">No description</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* AI Analysis */}
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Bot size={20} className="text-primary" />
+          <h2 className="font-semibold">AI Maintenance Analysis</h2>
+        </div>
+
+        {!analysis && !loading && (
+          <p className="text-sm text-muted-foreground">
+            Run AI analysis to get predictive maintenance recommendations for this asset.
+          </p>
+        )}
+
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 size={16} className="animate-spin" />
+            Analysing asset data...
+          </div>
+        )}
+
+        {analysis && (
+          <div className="bg-muted rounded-lg p-4 text-sm whitespace-pre-wrap leading-relaxed">
+            {analysis}
+          </div>
+        )}
+
+        <button
+          onClick={runAIAnalysis}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
+          {loading ? 'Analysing...' : 'Run AI Analysis'}
+        </button>
+      </div>
+    </div>
+  )
+}

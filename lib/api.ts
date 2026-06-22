@@ -199,3 +199,22 @@ export async function updateWorkOrderStatus(
   }
   return res.json()
 }
+export async function createAsset(payload: {
+  name: string
+  category: string
+  organizationId: string
+  locationId?: string
+  serialNumber?: string
+}): Promise<BackendAsset> {
+  const base = requireApiBase()
+  const res = await fetch(`${base}/api/assets/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Failed to create asset: ${res.status} ${res.statusText} ${text}`)
+  }
+  return res.json()
+}

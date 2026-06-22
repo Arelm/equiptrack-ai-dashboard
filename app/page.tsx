@@ -1,3 +1,4 @@
+import { AddAssetForm } from "@/components/add-asset-form"
 import Link from 'next/link'
 import { Ticket as TicketIcon, Users, PackageX, AlarmClock } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
@@ -132,10 +133,10 @@ export default async function OperationsDashboard() {
               <tbody>
                 {tickets.map((t) => (
                   <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-  <td className="px-5 py-3 font-mono text-xs font-medium text-primary">
-    <Link href={`/tickets/${t.id}`} className="hover:underline cursor-pointer">{t.id}</Link>
-  </td>
-  <td className="px-5 py-3 font-medium text-foreground">{t.client}</td>
+                    <td className="px-5 py-3 font-mono text-xs font-medium text-primary">
+                      <Link href={`/tickets/${t.id}`} className="hover:underline cursor-pointer">{t.id}</Link>
+                    </td>
+                    <td className="px-5 py-3 font-medium text-foreground">{t.client}</td>
                     <td className="px-5 py-3 text-muted-foreground">{t.facility}</td>
                     <td className="px-5 py-3 text-muted-foreground">{t.asset}</td>
                     <td className="px-5 py-3">
@@ -154,8 +155,23 @@ export default async function OperationsDashboard() {
             </table>
           </div>
         </section>
+
+        <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-sm font-semibold text-foreground">Add New Asset</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Register a new piece of equipment to a facility.
+            </p>
+          </div>
+          <div className="p-5">
+            <AddAssetForm
+              organizationId={org.id}
+              locations={locations}
+            />
+          </div>
+        </section>
+
       </div>
     </>
   )
 }
-

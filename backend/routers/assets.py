@@ -37,7 +37,13 @@ def get_asset(asset_id: str, db: Session = Depends(get_db)):
 
 @router.post("/")
 def create_asset(asset: AssetCreate, db: Session = Depends(get_db)):
-    db_asset = Asset(id=str(uuid.uuid4()), **asset.model_dump())
+    now = datetime.utcnow()
+    db_asset = Asset(
+        id=str(uuid.uuid4()),
+        createdAt=now,
+        updatedAt=now,
+        **asset.model_dump(),
+    )
     db.add(db_asset)
     db.commit()
     db.refresh(db_asset)

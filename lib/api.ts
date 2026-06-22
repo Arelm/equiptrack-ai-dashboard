@@ -183,3 +183,19 @@ export async function createWorkOrder(payload: {
   }
   return res.json()
 }
+export async function updateWorkOrderStatus(
+  id: string,
+  status: string,
+): Promise<BackendWorkOrder> {
+  const base = requireApiBase()
+  const res = await fetch(`${base}/api/workorders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Failed to update work order: ${res.status} ${res.statusText} ${text}`)
+  }
+  return res.json()
+}

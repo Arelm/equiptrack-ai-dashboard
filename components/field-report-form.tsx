@@ -3,13 +3,18 @@
 import { useState } from "react"
 import { CheckCircle2, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { technicianJobs, parts } from "@/lib/data"
+import { parts } from "@/lib/data"
+import type { BackendWorkOrder } from "@/lib/api"
 
 const fieldClass =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/30"
 
-export function FieldReportForm() {
-  const [jobId, setJobId] = useState(technicianJobs[0]?.id ?? "")
+type Props = {
+  workOrders: BackendWorkOrder[]
+}
+
+export function FieldReportForm({ workOrders }: Props) {
+  const [jobId, setJobId] = useState(workOrders[0]?.id ?? "")
   const [notes, setNotes] = useState("")
   const [selectedPart, setSelectedPart] = useState("")
   const [partsUsed, setPartsUsed] = useState<string[]>([])
@@ -57,6 +62,14 @@ export function FieldReportForm() {
     )
   }
 
+  if (workOrders.length === 0) {
+    return (
+      <p className="text-center text-sm text-muted-foreground">
+        No active jobs to report on.
+      </p>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
@@ -69,9 +82,9 @@ export function FieldReportForm() {
           onChange={(e) => setJobId(e.target.value)}
           className={fieldClass}
         >
-          {technicianJobs.map((job) => (
-            <option key={job.id} value={job.id}>
-              {job.id} — {job.asset}
+          {workOrders.map((wo) => (
+            <option key={wo.id} value={wo.id}>
+              {wo.id.slice(0, 8).toUpperCase()} — {wo.title}
             </option>
           ))}
         </select>

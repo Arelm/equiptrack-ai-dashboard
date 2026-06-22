@@ -1,48 +1,54 @@
-import { MapPin, Clock } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
-import { PriorityBadge } from "@/components/badges"
 import { FieldReportForm } from "@/components/field-report-form"
-import { technicianJobs } from "@/lib/data"
+import { TechnicianJobCard } from "@/components/technician-job-card"
+import {
+  fetchPrimaryOrganization,
+  fetchWorkOrders,
+  fetchAssets,
+  fetchLocations,
+} from "@/lib/api"
 
-export default function TechnicianPage() {
+export default async function TechnicianPage() {
+  const org = await fetchPrimaryOrganization()
+  const [workOrders, assets, locations] = await Promise.all([
+    fetchWorkOrders(org.id),
+    fetchAssets(org.id),
+    fetchLocations(org.id),
+  ])
+
+  const assetById = new Map(assets.map((a) => [a.id, a]))
+  const locationById = new Map(locations.map((l) => [l.id, l]))
+
+  const activeJobs = workOrders
+    .filter((wo) => wo.status !== "COMPLETED" && wo.status !== "CANCELLED")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
   return (
     <>
       <PageHeader
         title="Technician App"
-        description="Marcus Hill · 3 jobs assigned today"
+        description={`${activeJobs.length} active job${activeJobs.length !== 1 ? "s" : ""} assigned`}
       />
 
       <div className="mx-auto w-full max-w-md space-y-6 p-4 sm:max-w-2xl sm:p-6">
         <section>
           <h2 className="px-1 text-sm font-semibold text-foreground">Assigned Jobs</h2>
-          <ul className="mt-3 space-y-3">
-            {technicianJobs.map((job) => (
-              <li
-                key={job.id}
-                className="rounded-xl border border-border bg-card p-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-mono text-xs font-medium text-primary">{job.id}</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">{job.asset}</p>
-                    <p className="text-xs text-muted-foreground">{job.client}</p>
-                  </div>
-                  <PriorityBadge priority={job.priority} />
-                </div>
-                <p className="mt-3 text-sm text-foreground">{job.fault}</p>
-                <div className="mt-3 flex flex-col gap-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="size-3.5 shrink-0" />
-                    {job.address}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="size-3.5 shrink-0" />
-                    {job.window}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          {activeJobs.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+              No active jobs assigned.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-3">
+              {activeJobs.map((wo) => (
+                <TechnicianJobCard
+                  key={wo.id}
+                  wo={wo}
+                  asset={wo.assetId ? assetById.get(wo.assetId) : undefined}
+                  location={wo.locationId ? locationById.get(wo.locationId) : undefined}
+                />
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -51,7 +57,7 @@ export default function TechnicianPage() {
             Log your work, parts used, and resolution notes.
           </p>
           <div className="mt-5">
-            <FieldReportForm />
+            <FieldReportForm workOrders={activeJobs} />
           </div>
         </section>
       </div>

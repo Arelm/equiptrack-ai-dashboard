@@ -4,6 +4,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { PriorityBadge, StatusBadge } from '@/components/badges'
 import { ArrowLeft, Bot, Loader2, History } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   fetchWorkOrderById,
   fetchWorkOrders,
@@ -285,8 +287,46 @@ export default function TicketDetailPage() {
         )}
 
         {analysis && (
-          <div className="bg-muted rounded-lg p-4 text-sm whitespace-pre-wrap leading-relaxed">
-            {analysis}
+          <div className="bg-muted rounded-lg p-4 text-sm leading-relaxed">
+            <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({ children }) => (
+                  <h3 className="text-base font-semibold mt-4 mb-2 first:mt-0">{children}</h3>
+                ),
+                h2: ({ children }) => (
+                  <h3 className="text-base font-semibold mt-4 mb-2 first:mt-0">{children}</h3>
+                ),
+                h3: ({ children }) => (
+                  <h4 className="text-sm font-semibold mt-3 mb-1">{children}</h4>
+                ),
+                p: ({ children }) => <p className="mb-2">{children}</p>,
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-foreground">{children}</strong>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>
+                ),
+                li: ({ children }) => <li>{children}</li>,
+                hr: () => <hr className="my-3 border-border" />,
+                table: ({ children }) => (
+                  <div className="overflow-x-auto mb-3">
+                    <table className="w-full text-left border-collapse">{children}</table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th className="border-b border-border py-1.5 pr-4 text-xs font-semibold uppercase tracking-wide">{children}</th>
+                ),
+                td: ({ children }) => (
+                  <td className="border-b border-border py-1.5 pr-4 align-top">{children}</td>
+                ),
+              }}
+            >
+              {analysis}
+            </ReactMarkdown>
           </div>
         )}
 

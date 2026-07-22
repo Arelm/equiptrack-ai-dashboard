@@ -5,7 +5,7 @@
  * File: app/transfers/page.tsx
  * Sidebar: add a link to /transfers (see integration notes).
  */
-
+import { apiFetch } from "@/lib/authClient";
 import { useCallback, useEffect, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
@@ -56,7 +56,7 @@ export default function TransfersPage() {
   const [condition, setCondition] = useState("");
 
   const loadTransfers = useCallback(async () => {
-    const r = await fetch(`${API}/api/transfers`);
+    const r = await apiFetch(`/api/transfers`);
     if (r.ok) setTransfers(await r.json());
   }, []);
 
@@ -64,8 +64,8 @@ export default function TransfersPage() {
     (async () => {
       try {
         const [orgRes, locRes] = await Promise.all([
-          fetch(`${API}/api/organizations/`),
-          fetch(`${API}/api/transfers/locations`),
+          apiFetch(`/api/organizations/`),
+          apiFetch(`/api/transfers/locations`),
         ]);
         const orgList: Org[] = await orgRes.json();
         setOrgs(orgList);
@@ -81,7 +81,7 @@ export default function TransfersPage() {
   useEffect(() => {
     if (!orgId) return;
     (async () => {
-      const r = await fetch(`${API}/api/assets/?organizationId=${orgId}`);
+      const r = await apiFetch(`/api/assets/?organizationId=${orgId}`);
       if (!r.ok) return;
       const list: Asset[] = await r.json();
       setAssets(list);
@@ -104,7 +104,7 @@ export default function TransfersPage() {
     setBusy(true);
     setError("");
     try {
-      const r = await fetch(`${API}${path}`, {
+      const r = await apiFetch(`${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

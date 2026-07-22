@@ -24,6 +24,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db  # <-- adjust to your project's session dependency
 
+from routers.auth import get_current_user_optional
+
 from models_transfers import (
     VALID_REASONS,
     AssetTransfer,
@@ -94,7 +96,8 @@ def _with_names(db: Session, transfers: list[AssetTransfer]) -> list[TransferOut
 # ------------------------------------------------------------ initiate
 
 @router.post("", response_model=TransferOut, status_code=201)
-def initiate_transfer(payload: TransferCreate, db: Session = Depends(get_db)):
+def initiate_transfer(payload: TransferCreate, db: Session = Depends(get_db),
+                      user: dict | None = Depends(get_current_user_optional)):
     asset = _asset(db, payload.assetId)
 
     if payload.reason not in VALID_REASONS:
@@ -124,7 +127,7 @@ def initiate_transfer(payload: TransferCreate, db: Session = Depends(get_db)):
         reason=payload.reason,
         notes=payload.notes,
         conditionOnDispatch=payload.conditionOnDispatch,
-        initiatedById=payload.initiatedById,
+        initiatedById=user["sub"] if user else payload.initiatedById,
         status="IN_TRANSIT",
         initiatedAt=datetime.utcnow(),
     )
@@ -140,13 +143,14 @@ def initiate_transfer(payload: TransferCreate, db: Session = Depends(get_db)):
 
 @router.post("/{transfer_id}/receive", response_model=TransferOut)
 def receive_transfer(transfer_id: str, payload: TransferReceive,
-                     db: Session = Depends(get_db)):
+                     db: Session = Depends(get_db),
+                     user: dict | None = Depends(get_current_user_optional)):
     t = _get_transfer(db, transfer_id)
     if t.status != "IN_TRANSIT":
         raise HTTPException(409, f"Transfer is {t.status}, not IN_TRANSIT")
 
     t.status = "RECEIVED"
-    t.receivedById = payload.receivedById
+    t.receivedById = user["sub"] if user else payload.receivedById
     t.conditionOnArrival = payload.conditionOnArrival
     t.resolvedAt = datetime.utcnow()
 
@@ -162,17 +166,18 @@ def receive_transfer(transfer_id: str, payload: TransferReceive,
 
 @router.post("/{transfer_id}/dispute", response_model=TransferOut)
 def dispute_transfer(transfer_id: str, payload: TransferDispute,
-                     db: Session = Depends(get_db)):
+                     db: Session = Depends(get_db),
+                    user: dict | None = Depends(get_current_user_optional)):
     t = _get_transfer(db, transfer_id)
     if t.status != "IN_TRANSIT":
         raise HTTPException(409, f"Transfer is {t.status}, not IN_TRANSIT")
 
     t.status = "DISPUTED"
-    t.receivedById = payload.receivedById
+    t.receivedById = user["sub"] if user else payload.receivedById
     t.notes = (t.notes + "\n--- DISPUTE ---\n" if t.notes else "") + payload.notes
     t.resolvedAt = datetime.utcnow()
 
-    _set_asset(db, t.assetId, custody="DISPUTED")    # location stays = origin
+    _set_asset(db, t.assetId, custody="DISPUTED")
 
     db.commit()
     db.refresh(t)

@@ -24,6 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database import get_db
+from routers.auth import get_current_user_optional
 
 router = APIRouter()
 
@@ -73,7 +74,8 @@ def _row_to_out(r) -> DisposalOut:
 # ---------------------------------------------------------------- dispose
 
 @router.post("", response_model=DisposalOut, status_code=201)
-def dispose_asset(payload: DisposalCreate, db: Session = Depends(get_db)):
+def dispose_asset(payload: DisposalCreate, db: Session = Depends(get_db),
+                  user: dict | None = Depends(get_current_user_optional)):
     if payload.method not in VALID_METHODS:
         raise HTTPException(422, f"method must be one of {sorted(VALID_METHODS)}")
 
@@ -97,13 +99,15 @@ def dispose_asset(payload: DisposalCreate, db: Session = Depends(get_db)):
                  "before disposal."
         )
 
+    confirmed_by = user["sub"] if user else payload.confirmedById
+
     disposal_id = str(uuid.uuid4())
     db.execute(
         text('INSERT INTO "AssetDisposal" '
              '(id, "assetId", method, reason, "confirmedById", "disposedAt") '
              'VALUES (:id, :aid, :m, :r, :cb, NOW())'),
         {"id": disposal_id, "aid": payload.assetId, "m": payload.method,
-         "r": payload.reason, "cb": payload.confirmedById},
+         "r": payload.reason, "cb": confirmed_by},
     )
     db.execute(
         text('UPDATE "Asset" SET status = \'DECOMMISSIONED\', "updatedAt" = NOW() '

@@ -87,3 +87,14 @@ def require_role(*roles: str):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
     return checker
+
+def get_current_user_optional(authorization: str = Header(None)):
+    """Like get_current_user, but returns None instead of 401 when no/invalid token.
+    Temporary bridge while frontend token wiring is completed."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ", 1)[1]
+    try:
+        return jwt.decode(token, AUTH_SECRET, algorithms=["HS256"])
+    except jwt.InvalidTokenError:
+        return None

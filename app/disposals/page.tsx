@@ -7,8 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "";
+import { apiFetch } from "@/lib/authClient";
 
 type Org = { id: string; name: string };
 type Asset = { id: string; name: string; category: string; status: string };
@@ -50,14 +49,14 @@ export default function DisposalsPage() {
   const [reason, setReason] = useState("");
 
   const load = useCallback(async () => {
-    const r = await fetch(`${API}/api/disposals`);
+    const r = await apiFetch(`/api/disposals`);
     if (r.ok) setDisposals(await r.json());
   }, []);
 
   useEffect(() => {
     (async () => {
       try {
-        const orgRes = await fetch(`${API}/api/organizations/`);
+        const orgRes = await apiFetch(`/api/organizations/`);
         const orgList: Org[] = await orgRes.json();
         setOrgs(orgList);
         if (orgList.length) setOrgId(orgList[0].id);
@@ -71,7 +70,7 @@ export default function DisposalsPage() {
   useEffect(() => {
     if (!orgId) return;
     (async () => {
-      const r = await fetch(`${API}/api/assets/?organizationId=${orgId}`);
+      const r = await apiFetch(`/api/assets/?organizationId=${orgId}`);
       if (r.ok) setAssets(await r.json());
     })();
   }, [orgId]);
@@ -97,7 +96,7 @@ export default function DisposalsPage() {
     setBusy(true);
     setError("");
     try {
-      const r = await fetch(`${API}/api/disposals`, {
+      const r = await apiFetch(`/api/disposals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assetId, method, reason: reason || null }),
@@ -110,7 +109,7 @@ export default function DisposalsPage() {
       setReason("");
       await load();
       // refresh assets so the disposed one leaves the dropdown
-      const ar = await fetch(`${API}/api/assets/?organizationId=${orgId}`);
+      const ar = await apiFetch(`/api/assets/?organizationId=${orgId}`);
       if (ar.ok) setAssets(await ar.json());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Request failed");
@@ -123,12 +122,12 @@ export default function DisposalsPage() {
     if (!window.confirm(`Restore "${d.assetName}" to operational status?`)) return;
     setBusy(true);
     try {
-      const r = await fetch(`${API}/api/disposals/${d.id}/restore`, {
+      const r = await apiFetch(`/api/disposals/${d.id}/restore`, {
         method: "POST",
       });
       if (r.ok) {
         await load();
-        const ar = await fetch(`${API}/api/assets/?organizationId=${orgId}`);
+        const ar = await apiFetch(`/api/assets/?organizationId=${orgId}`);
         if (ar.ok) setAssets(await ar.json());
       }
     } finally {

@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils"
 const navItems = [
   { href: "/", label: "Operations Dashboard", icon: LayoutDashboard, desc: "Live ticket queue" },
   { href: "/client-portal", label: "Client Portal", icon: ClipboardList, desc: "Submit & track requests" },
-  { href: "/technician", label: "Technician App", icon: Wrench, desc: "Assigned field jobs" }
-  { href: "/transfers", label: "Asset Transfers", icon: ArrowLeftRight, desc: "Site-to-site custody" },
+  { href: "/technician", label: "Technician App", icon: Wrench, desc: "Assigned field jobs" },
+{ href: "/transfers", label: "Asset Transfers", icon: ArrowLeftRight, desc: "Site-to-site custody" },
   { href: "/disposals", label: "Disposal Center", icon: Archive, desc: "Retired & scrapped assets" },
 ]
 

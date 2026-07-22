@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import assets, workorders, alerts, technicians, ai, organizations, locations, transfers
+from routers import assets, workorders, alerts, technicians, ai, organizations, locations, transfers, disposals
 
 app = FastAPI(
     title="EquipTrack AI API",
@@ -29,6 +29,7 @@ app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 app.include_router(organizations.router, prefix="/api/organizations", tags=["Organizations"])
 app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
 app.include_router(transfers.router, prefix="/api/transfers", tags=["Transfers"])
+app.include_router(disposals.router, prefix="/api/disposals", tags=["Disposals"])
 
 @app.get("/")
 def root():

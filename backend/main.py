@@ -27,6 +27,7 @@ app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(technicians.router, prefix="/api/technicians", tags=["Technicians"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 app.include_router(organizations.router, prefix="/api/organizations", tags=["Organizations"])
+app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
 app.include_router(transfers.router, prefix="/api/transfers", tags=["Transfers"])
 
 @app.get("/")

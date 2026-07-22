@@ -29,7 +29,7 @@ app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 app.include_router(organizations.router, prefix="/api/organizations", tags=["Organizations"])
 app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
 app.include_router(transfers.router, prefix="/api/transfers", tags=["Transfers"])
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(disposals.router, prefix="/api/disposals", tags=["Disposals"])
 
 @app.get("/")

@@ -106,9 +106,10 @@ def main() -> int:
                 issued.append((email, password, spec["role"], "password set"))
             else:
                 db.execute(text(
-                    'INSERT INTO "User" (id, email, name, role, "passwordHash", '
-                    '"isActive", "organizationId", "createdAt") '
-                    'VALUES (:i, :e, :n, :r, :h, TRUE, :o, NOW())'
+                   'INSERT INTO "User" (id, email, name, role, "passwordHash", '
+                    '"isActive", "organizationId", "createdAt", "updatedAt") '
+                    'VALUES (:i, :e, :n, :r, :h, TRUE, :o, NOW(), NOW())' 
+                    
                 ), {"i": str(uuid.uuid4()), "e": email, "n": spec["name"],
                     "r": spec["role"], "h": hash_password(password), "o": org.id})
                 issued.append((email, password, spec["role"], "account created"))

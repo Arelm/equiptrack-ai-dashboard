@@ -19,3 +19,6 @@ __pycache__/
 *.pyo
 backend/venv/
 *assword*.txt
+
+tsconfig.tsbuildinfo
+.mypy_cache/

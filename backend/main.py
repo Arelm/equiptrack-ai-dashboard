@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import assets, workorders, alerts, technicians, ai, organizations, locations, transfers, disposals, auth
+from routers import (
+    assets, workorders, alerts, technicians, ai, organizations,
+    locations, transfers, disposals, auth, assignments, reports, parts,
+)
 
 app = FastAPI(
     title="EquipTrack AI API",
@@ -22,6 +25,8 @@ app.add_middleware(
 
 
 app.include_router(assets.router, prefix="/api/assets", tags=["Assets"])
+# Registered before workorders: GET /mine must not be captured by GET /{wo_id}.
+app.include_router(assignments.router, prefix="/api/workorders", tags=["Assignments"])
 app.include_router(workorders.router, prefix="/api/workorders", tags=["Work Orders"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(technicians.router, prefix="/api/technicians", tags=["Technicians"])
@@ -31,6 +36,8 @@ app.include_router(locations.router, prefix="/api/locations", tags=["Locations"]
 app.include_router(transfers.router, prefix="/api/transfers", tags=["Transfers"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(disposals.router, prefix="/api/disposals", tags=["Disposals"])
+app.include_router(parts.router, prefix="/api/parts", tags=["Parts"])
+app.include_router(reports.router, prefix="/api", tags=["Field Reports"])
 
 @app.get("/")
 def root():

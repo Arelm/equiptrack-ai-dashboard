@@ -186,13 +186,19 @@ export async function createWorkOrder(payload: {
 export async function updateWorkOrderStatus(
   id: string,
   status: string,
+  overrideReason?: string,
 ): Promise<BackendWorkOrder> {
   const base = requireApiBase()
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("equiptrack_token") : null
   const res = await fetch(`${base}/api/workorders/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
-  })
+  headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ status, overrideReason }),
+    })
   if (!res.ok) {
     const text = await res.text().catch(() => "")
     throw new Error(`Failed to update work order: ${res.status} ${res.statusText} ${text}`)

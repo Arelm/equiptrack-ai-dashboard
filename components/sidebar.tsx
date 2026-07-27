@@ -4,6 +4,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, ClipboardList, Wrench, Radar, ArrowLeftRight, Archive } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useEffect, useState } from "react"
+import { getUser, type AuthUser } from "@/lib/authClient"
 
 const navItems = [
   { href: "/", label: "Operations Dashboard", icon: LayoutDashboard, desc: "Live ticket queue" },
@@ -15,6 +17,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const [user, setUser] = useState<AuthUser | null>(null)
+  useEffect(() => { setUser(getUser()) }, [])
 
   return (
     <aside className="flex w-full shrink-0 flex-col bg-sidebar text-sidebar-foreground md:h-dvh md:w-72 md:sticky md:top-0">
@@ -63,11 +67,13 @@ export function Sidebar() {
       <div className="mt-auto hidden border-t border-sidebar-border px-6 py-4 md:block">
         <div className="flex items-center gap-3">
           <div className="flex size-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
-            OM
+            {user
+              ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+              : "—"}
           </div>
           <div className="text-xs">
-            <p className="font-medium text-sidebar-foreground">Operations Manager</p>
-            <p className="text-sidebar-foreground/55">ops@equiptrack.ai</p>
+           <p className="font-medium text-sidebar-foreground">{user?.name ?? "Not signed in"}</p>
+          <p className="text-sidebar-foreground/55">{user?.email ?? "—"}</p>
           </div>
         </div>
       </div>

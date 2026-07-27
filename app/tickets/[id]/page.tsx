@@ -6,16 +6,8 @@ import { ArrowLeft, Bot, Loader2, History } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  fetchWorkOrderById,
-  fetchWorkOrders,
-  fetchAssets,
-  fetchLocations,
-  fetchOrganizations,
-  mapPriority,
-  mapStatus,
-  type BackendWorkOrder,
-} from '@/lib/api'
+import { mapPriority, mapStatus } from '@/lib/api'
+import { apiFetch, getUser } from '@/lib/authClient'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
@@ -57,42 +49,51 @@ export default function TicketDetailPage() {
     if (!ticketId) return
     let cancelled = false
 
-    async function load() {
+async function load() {
       try {
-        const wo: BackendWorkOrder = await fetchWorkOrderById(ticketId!)
+        const user = getUser()
+        if (!user) { window.location.href = '/login'; return }
 
-        const [orgs, assets, locations, allWorkOrders] = await Promise.all([
-          fetchOrganizations(),
-          fetchAssets(wo.organizationId),
-          fetchLocations(wo.organizationId),
-          fetchWorkOrders(wo.organizationId),
+        const woRes = await apiFetch(`/api/workorders/${ticketId}`)
+        if (!woRes.ok) throw new Error('not found')
+        const wo = await woRes.json()
+
+        const q = `?organizationId=${encodeURIComponent(wo.organizationId)}`
+        const [assetsRes, locsRes, allRes] = await Promise.all([
+          apiFetch(`/api/assets/${q}`),
+          apiFetch(`/api/locations/${q}`),
+          apiFetch(`/api/workorders/${q}`),
         ])
+        const assets = assetsRes.ok ? await assetsRes.json() : []
+        const locations = locsRes.ok ? await locsRes.json() : []
+        const allWorkOrders = allRes.ok ? await allRes.json() : []
 
-        const org = orgs.find((o) => o.id === wo.organizationId)
-        const asset = assets.find((a) => a.id === wo.assetId)
-        const location = locations.find((l) => l.id === wo.locationId)
+        const asset = assets.find((a: any) => a.id === wo.assetId)
+        const location = locations.find((l: any) => l.id === wo.locationId)
 
         if (cancelled) return
 
         setTicket({
           id: wo.id,
-          client: org?.name ?? '—',
+         client: 'JDAEM Enterprise Limited',
           facility: location?.name ?? '—',
           asset: asset?.name ?? '—',
           assetId: wo.assetId ?? null,
           priority: mapPriority(wo.priority),
           status: mapStatus(wo.status),
-          technician: null,
+          // The assignee, which this page hardcoded as null even after
+          // assignment existed.
+          technician: wo.technician?.name ?? null,
           created: wo.createdAt,
           fault: wo.description ?? undefined,
         })
 
-        // Service history: all other work orders for the same asset
         if (wo.assetId) {
           const history = allWorkOrders
-            .filter((w) => w.assetId === wo.assetId && w.id !== wo.id)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .map((w) => ({
+            .filter((w: any) => w.assetId === wo.assetId && w.id !== wo.id)
+            .sort((a: any, b: any) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .map((w: any) => ({
               id: w.id,
               priority: mapPriority(w.priority),
               status: mapStatus(w.status),

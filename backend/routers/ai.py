@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Asset, WorkOrder, Alert, AlertTypeEnum, SeverityEnum
+from models import (
+    Asset, WorkOrder, Alert, AlertTypeEnum, SeverityEnum,
+    MaintenanceLog, PartsUsed, PartsInventory,
+)
 from pydantic import BaseModel
 from typing import Optional
 import anthropic
@@ -101,11 +104,64 @@ class TicketAnalysisRequest(BaseModel):
     fault: Optional[str] = None
 
 
-@router.post("/analyze-ticket")
-def analyze_ticket(request: TicketAnalysisRequest):
-    prompt = f"""You are an expert HVAC and field service maintenance engineer.
+def _asset_history(db: Session, asset_id: str, exclude_wo: str) -> str:
+    """Every previous job on this asset, with the parts actually fitted.
 
-Analyze this service ticket and provide a concise predictive maintenance recommendation:
+    The analysis used to reason from one fault description. It had no knowledge
+    of which interventions were tried or what was replaced, which caps
+    recommendation quality regardless of model. Three capacitors on one asset in
+    eighteen months is not a capacitor problem — it is a supply voltage problem,
+    and that pattern is invisible without parts history.
+    """
+    rows = (
+        db.query(WorkOrder)
+        .filter(WorkOrder.assetId == asset_id, WorkOrder.id != exclude_wo)
+        .order_by(WorkOrder.createdAt.desc())
+        .limit(20)
+        .all()
+    )
+    if not rows:
+        return "No previous service records for this asset."
+
+    lines = []
+    for w in rows:
+        date = w.createdAt.strftime("%Y-%m-%d") if w.createdAt else "unknown date"
+        lines.append(f"- {date} [{w.priority}] {w.title}: {w.description or 'no description'}")
+
+        log = db.query(MaintenanceLog).filter(MaintenanceLog.workOrderId == w.id).first()
+        if not log:
+            continue
+        if log.notes:
+            lines.append(f"    Work done: {log.notes}")
+        if log.partsUsedDeclared is False:
+            lines.append("    Parts: none needed (declared)")
+            continue
+
+        parts = db.query(PartsUsed).filter(PartsUsed.maintenanceLogId == log.id).all()
+        for p in parts:
+            name = p.partNameRaw
+            if p.partId:
+                cat = db.query(PartsInventory).filter(PartsInventory.id == p.partId).first()
+                name = cat.name if cat else name
+            lines.append(f"    Part fitted: {name} x{p.quantityUsed} ({p.source or 'source not recorded'})")
+
+    return "\n".join(lines)
+
+
+@router.post("/analyze-ticket")
+def analyze_ticket(request: TicketAnalysisRequest, db: Session = Depends(get_db)):
+    wo = db.query(WorkOrder).filter(WorkOrder.id == request.ticket_id).first()
+
+    history = "No previous service records for this asset."
+    if wo and wo.assetId:
+        history = _asset_history(db, wo.assetId, wo.id)
+
+    prompt = f"""You are an expert HVAC and field service maintenance engineer
+working in Lagos, Nigeria. Mains supply is unstable, generator changeover is
+common, and counterfeit or refurbished components are widespread in the parts
+market. Take that operating context into account.
+
+Analyze this service ticket:
 
 Ticket ID: {request.ticket_id}
 Client: {request.client}
@@ -116,13 +172,23 @@ Status: {request.status}
 Assigned Technician: {request.technician or 'Unassigned'}
 Fault Description: {request.fault or 'No fault description provided'}
 
-Provide:
-1. Most likely root cause
-2. Recommended immediate actions for the technician
-3. Parts/tools to bring on site
-4. Preventive measures to avoid recurrence
+SERVICE HISTORY FOR THIS ASSET (previous jobs, work done, and parts fitted):
+{history}
 
-Be specific and practical."""
+Provide:
+1. Most likely root cause. If the history shows the same component replaced more
+   than once, say so explicitly and treat repeat replacement as a symptom of an
+   underlying cause rather than a recurring coincidence.
+2. Recommended immediate actions for the technician, in the order he should do them.
+3. Parts and tools to bring on site. Be specific about sizes and ratings where
+   the asset type allows it.
+4. Preventive measures to avoid recurrence.
+
+If the service history is empty, say so plainly and base the analysis on the
+fault description alone rather than inventing history.
+
+Be specific and practical. Write for a technician who will read this on a phone
+at the gate before he goes in."""
 
     message = client.messages.create(
         model="claude-sonnet-4-6",

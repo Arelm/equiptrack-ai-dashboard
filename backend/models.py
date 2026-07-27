@@ -174,25 +174,6 @@ class Alert(Base):
     assetId = Column(String, ForeignKey("Asset.id"))
     createdAt = Column(DateTime, server_default=func.now())
     
-    class StockMovement(Base):
-        """Append-only ledger. Never updated, never deleted.
-
-    A wrong quantity is corrected by writing a compensating movement, not by
-    editing history. PartsInventory.quantity is a cached read of this table.
-    """
-    __tablename__ = "StockMovement"
-    id = Column(String, primary_key=True)
-    partId = Column(String, ForeignKey("PartsInventory.id"), nullable=False)
-    delta = Column(Integer, nullable=False)          # negative consumes, positive receives
-    reason = Column(String, nullable=False)
-    refType = Column(String)
-    refId = Column(String)
-    locationId = Column(String, ForeignKey("Location.id"))  # unused in Phase 1
-    createdBy = Column(String, ForeignKey("User.id"))
-    note = Column(String)
-    createdAt = Column(DateTime, server_default=func.now())
-
-
 class StockMovement(Base):
     """Append-only ledger. Never updated, never deleted.
 

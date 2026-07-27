@@ -2,23 +2,43 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ClipboardList, Wrench, Radar, ArrowLeftRight, Archive } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
-import { getUser, type AuthUser } from "@/lib/authClient"
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Wrench,
+  Radar,
+  ArrowLeftRight,
+  Archive,
+  LogOut,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import { getUser, clearAuth, type AuthUser } from "@/lib/authClient"
 
 const navItems = [
   { href: "/", label: "Operations Dashboard", icon: LayoutDashboard, desc: "Live ticket queue" },
   { href: "/client-portal", label: "Client Portal", icon: ClipboardList, desc: "Submit & track requests" },
   { href: "/technician", label: "Technician App", icon: Wrench, desc: "Assigned field jobs" },
-{ href: "/transfers", label: "Asset Transfers", icon: ArrowLeftRight, desc: "Site-to-site custody" },
+  { href: "/transfers", label: "Asset Transfers", icon: ArrowLeftRight, desc: "Site-to-site custody" },
   { href: "/disposals", label: "Disposal Center", icon: Archive, desc: "Retired & scrapped assets" },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const [user, setUser] = useState<AuthUser | null>(null)
-  useEffect(() => { setUser(getUser()) }, [])
+
+  useEffect(() => {
+    setUser(getUser())
+  }, [])
+
+  function signOut() {
+    clearAuth()
+    window.location.href = "/login"
+  }
+
+  const initials = user
+    ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "—"
 
   return (
     <aside className="flex w-full shrink-0 flex-col bg-sidebar text-sidebar-foreground md:h-dvh md:w-72 md:sticky md:top-0">
@@ -66,15 +86,26 @@ export function Sidebar() {
 
       <div className="mt-auto hidden border-t border-sidebar-border px-6 py-4 md:block">
         <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
-            {user
-              ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
-              : "—"}
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
+            {initials}
           </div>
-          <div className="text-xs">
-           <p className="font-medium text-sidebar-foreground">{user?.name ?? "Not signed in"}</p>
-          <p className="text-sidebar-foreground/55">{user?.email ?? "—"}</p>
+
+          <div className="min-w-0 flex-1 text-xs">
+            <p className="truncate font-medium text-sidebar-foreground">
+              {user?.name ?? "Not signed in"}
+            </p>
+            <p className="truncate text-sidebar-foreground/55">{user?.email ?? "—"}</p>
           </div>
+
+          <button
+            type="button"
+            onClick={user ? signOut : () => { window.location.href = "/login" }}
+            aria-label={user ? "Sign out" : "Sign in"}
+            title={user ? "Sign out" : "Sign in"}
+            className="shrink-0 rounded p-1.5 text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          >
+            <LogOut className="size-4" />
+          </button>
         </div>
       </div>
     </aside>

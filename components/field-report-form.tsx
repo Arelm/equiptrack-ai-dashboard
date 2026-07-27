@@ -106,10 +106,28 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
   }
 
   function removeLine(key: string) {
-    setLines((prev) => prev.filter((l) => l.key !== key))
+    setLines((prev) => {
+      const next = prev.filter((l) => l.key !== key)
+      // Removing the last line means he has not decided yet, not that he
+      // declared zero parts. Fall back to undecided rather than leaving him
+      // in a state the form will reject on submit.
+      if (next.length === 0) setDeclaration("")
+      return next
+    })
+    setError(null)
   }
 
   function chooseDeclaration(choice: "none" | "some") {
+    // Pressing the selected button again deselects it. Without this, a
+    // technician who taps "Add parts" by accident is stuck: the form demands a
+    // line he does not have, and the way out is to press a different button he
+    // has no reason to think is the answer.
+    if (declaration === choice) {
+      setDeclaration("")
+      setLines([])
+      setError(null)
+      return
+    }
     setDeclaration(choice)
     setError(null)
     if (choice === "some" && lines.length === 0) addLine()
@@ -124,7 +142,11 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
       return setError('Say whether parts were used. "No parts needed" is a valid answer.')
     }
     if (declaration === "some") {
-      if (lines.length === 0) return setError("Add at least one part, or declare no parts needed.")
+     if (lines.length === 0) {
+        return setError(
+          'No parts added. Press "No parts needed" if none were used, or add a part below.',
+        )
+      } 
       for (const l of lines) {
         if (!l.partId) return setError("Every line needs a part selected.")
         if (l.partId === NOT_LISTED && !l.partNameRaw.trim()) {

@@ -22,3 +22,5 @@ backend/venv/
 
 tsconfig.tsbuildinfo
 .mypy_cache/
+
+technicians.csv

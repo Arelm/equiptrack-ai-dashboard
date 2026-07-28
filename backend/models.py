@@ -85,6 +85,11 @@ class Location(Base):
     address = Column(String)
     organizationId = Column(String, ForeignKey("Organization.id"))
     createdAt = Column(DateTime, server_default=func.now())
+    client = Column(String)
+    supervisorName = Column(String)
+    supervisorPhone = Column(String)
+    area = Column(String)
+    isActive = Column(Boolean, nullable=False, server_default="true")
 
 class Asset(Base):
     __tablename__ = "Asset"

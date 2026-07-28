@@ -13,6 +13,7 @@ import {
   Archive,
   LogOut,
   Package,
+  MapPin,
 } from "lucide-react"
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/client-portal", label: "Client Portal", icon: ClipboardList, desc: "Submit & track requests" },
   { href: "/technician", label: "Technician App", icon: Wrench, desc: "Assigned field jobs" },
   { href: "/parts", label: "Parts & Inventory", icon: Package, desc: "Stock levels & receipts" },
+  { href: "/locations", label: "Sites", icon: MapPin, desc: "Client plots & supervisors" },
   { href: "/transfers", label: "Asset Transfers", icon: ArrowLeftRight, desc: "Site-to-site custody" },
   { href: "/disposals", label: "Disposal Center", icon: Archive, desc: "Retired & scrapped assets" },
 ]

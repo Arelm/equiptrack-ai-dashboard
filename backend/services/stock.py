@@ -10,6 +10,7 @@ makes the number worth having.
 """
 
 import uuid
+from decimal import Decimal
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -26,7 +27,7 @@ def _now() -> datetime:
 def record_movement(
     db: Session,
     part_id: str,
-    delta: int,
+    delta: int | float | Decimal,
     reason: StockReasonEnum,
     created_by: Optional[str] = None,
     ref_type: Optional[str] = None,
@@ -38,6 +39,12 @@ def record_movement(
     Does not commit. The caller owns the transaction boundary so a report and all
     of its stock movements succeed or fail together.
     """
+    # quantity is numeric in Postgres, so SQLAlchemy hands back a Decimal
+    # while the API sends a float. Mixing them raises TypeError, so the
+    # delta becomes Decimal at the door. str() first: Decimal(0.1) is not
+    # 0.1, but Decimal("0.1") is.
+    delta = Decimal(str(delta))
+
     if delta == 0:
         raise ValueError("A zero-delta movement records nothing.")
 

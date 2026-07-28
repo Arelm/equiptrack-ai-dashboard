@@ -1,322 +1,129 @@
-"""Parts catalogue and stock ledger.
+"""Seed the parts catalogue with JDAEM's actual consumables.
 
-The technician app read its parts list from lib/data.ts, a static mock. These are
-the endpoints that replace it with the PartsInventory table that already existed
-and was never exposed.
+Idempotent — matches on partNumber, so re-running updates rather than
+duplicating. Opening quantities are zero: stock is what you count, not what a
+script asserts. Receive real quantities through the Parts page so every balance
+has a ledger entry behind it.
 
-Quantities are decimal because refrigerant is charged in fractions of a kilo and
-copper is cut to fractions of a metre. Every part carries a unit, because
-"quantity 5" means nothing on its own — five metres of pipe, five pieces of
-Armaflex and five kilos of R-32 are different declarations.
+    railway run python backend/seed_parts.py --apply
 """
 
+import argparse
+import os
+import sys
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, field_validator
-from sqlalchemy.orm import Session
+from sqlalchemy import text
 
-from database import get_db
-from models import (
-    PartsInventory,
-    RoleEnum,
-    StockMovement,
-    StockReasonEnum,
-    User,
-)
-from routers.auth import get_current_user, require_role
-from services.stock import record_movement, reconcile
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from database import SessionLocal  # noqa: E402
 
-router = APIRouter()
+# (partNumber, name, unit, category, reorderLevel)
+PARTS = [
+    ("CU-0250", 'Copper pipe 1/4"',  "m", "Pipe", 30),
+    ("CU-0375", 'Copper pipe 3/8"',  "m", "Pipe", 30),
+    ("CU-0500", 'Copper pipe 1/2"',  "m", "Pipe", 30),
+    ("CU-0625", 'Copper pipe 5/8"',  "m", "Pipe", 30),
+    ("CU-0750", 'Copper pipe 3/4"',  "m", "Pipe", 20),
 
-VALID_UNITS = ["pcs", "m", "kg", "length", "set", "litre"]
+    ("ARM-0375", 'Armaflex 3/8"', "pcs", "Insulation", 20),
+    ("ARM-0625", 'Armaflex 5/8"', "pcs", "Insulation", 20),
+    ("ARM-0750", 'Armaflex 3/4"', "pcs", "Insulation", 15),
 
-MANAGER = (RoleEnum.MANAGER.value, RoleEnum.ADMIN.value)
+    ("FLN-0250", 'Flare nut 1/4"', "pcs", "Fittings", 25),
+    ("FLN-0375", 'Flare nut 3/8"', "pcs", "Fittings", 25),
+    ("FLN-0500", 'Flare nut 1/2"', "pcs", "Fittings", 25),
+    ("FLN-0625", 'Flare nut 5/8"', "pcs", "Fittings", 25),
+    ("FLN-0750", 'Flare nut 3/4"', "pcs", "Fittings", 15),
 
+    ("REF-R22",  "Refrigerant R22",   "kg", "Refrigerant", 10),
+    ("REF-R410", "Refrigerant R410A", "kg", "Refrigerant", 10),
+    ("REF-R32",  "Refrigerant R32",   "kg", "Refrigerant", 10),
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    ("FLX-075", "Flexible pipe 75mm", "m", "Ducting", 20),
+    ("FLX-055", "Flexible pipe 55mm", "m", "Ducting", 20),
 
+    ("TRK-075", "Trunking 75mm", "length", "Trunking", 10),
+    ("TRK-055", "Trunking 55mm", "length", "Trunking", 10),
+    ("TRK-016", "Trunking 16mm", "length", "Trunking", 10),
 
-def _serialise(p: PartsInventory) -> dict:
-    qty = float(p.quantity or 0)
-    reorder = float(p.reorderLevel or 0)
-    return {
-        "id": p.id,
-        "name": p.name,
-        "partNumber": p.partNumber,
-        "quantity": qty,
-        "reorderLevel": reorder,
-        "unit": p.unit or "pcs",
-        "category": p.category,
-        "lowStock": qty <= reorder,
-    }
+    ("KIT-INST", "Installation kit (assorted pipe)", "set", "Kit", 5),
 
+    ("CAP-R25",  "Run capacitor 25uF",     "pcs", "Electrical", 6),
+    ("CAP-R35",  "Run capacitor 35uF",     "pcs", "Electrical", 6),
+    ("CAP-R45",  "Run capacitor 45uF",     "pcs", "Electrical", 6),
+    ("CON-25A",  "Contactor 25A",          "pcs", "Electrical", 4),
+    ("CON-40A",  "Contactor 40A",          "pcs", "Electrical", 4),
+    ("OLP-STD",  "Overload protector",     "pcs", "Electrical", 4),
 
-# ---------------------------------------------------------------------------
-# Read
-# ---------------------------------------------------------------------------
-
-@router.get("/")
-def list_parts(organizationId: str, db: Session = Depends(get_db),
-               user: dict = Depends(get_current_user)):
-    if organizationId != user.get("orgId"):
-        raise HTTPException(status_code=403, detail="Wrong organisation")
-    parts = (
-        db.query(PartsInventory)
-        .filter(PartsInventory.organizationId == organizationId)
-        .order_by(PartsInventory.category.asc(), PartsInventory.name.asc())
-        .all()
-    )
-    return [_serialise(p) for p in parts]
+    ("DRI-STD",  "Filter drier",           "pcs", "Consumable", 6),
+    ("BRZ-15",   "Brazing rod 15% silver", "pcs", "Consumable", 20),
+    ("NIT-TEST", "Nitrogen (pressure testing)", "kg", "Consumable", 5),
+]
 
 
-@router.get("/low-stock")
-def low_stock(organizationId: str, db: Session = Depends(get_db),
-              user: dict = Depends(get_current_user)):
-    """The dashboard's "Parts low stock" counter, now backed by a moving number."""
-    if organizationId != user.get("orgId"):
-        raise HTTPException(status_code=403, detail="Wrong organisation")
-    parts = db.query(PartsInventory).filter(
-        PartsInventory.organizationId == organizationId,
-        PartsInventory.quantity <= PartsInventory.reorderLevel,
-    ).all()
-    return {"count": len(parts), "parts": [_serialise(p) for p in parts]}
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--apply", action="store_true", help="Write to the database")
+    args = ap.parse_args()
+
+    db = SessionLocal()
+    try:
+        org = db.execute(
+            text('SELECT id, name FROM "Organization" ORDER BY "createdAt" LIMIT 1')
+        ).fetchone()
+        if not org:
+            print("No organisation found.")
+            return 1
+
+        print(f"\nOrganisation: {org.name}\n")
+
+        existing = {
+            r.partNumber: r.id
+            for r in db.execute(text(
+                'SELECT id, "partNumber" FROM "PartsInventory" WHERE "organizationId" = :o'
+            ), {"o": org.id}).fetchall()
+        }
+
+        print(f"{'PART NO':<12} {'NAME':<38} {'UNIT':<8} {'CATEGORY':<14} ACTION")
+        print("-" * 92)
+
+        created = updated = 0
+        for number, name, unit, category, reorder in PARTS:
+            action = "update" if number in existing else "create"
+            print(f"{number:<12} {name:<38} {unit:<8} {category:<14} {action}")
+
+            if not args.apply:
+                continue
+
+            if number in existing:
+                db.execute(text(
+                    'UPDATE "PartsInventory" SET name = :n, unit = :u, category = :c, '
+                    '"reorderLevel" = :r, "updatedAt" = NOW() WHERE id = :i'
+                ), {"n": name, "u": unit, "c": category, "r": reorder,
+                    "i": existing[number]})
+                updated += 1
+            else:
+                db.execute(text(
+                    'INSERT INTO "PartsInventory" '
+                    '(id, name, "partNumber", quantity, "reorderLevel", unit, category, '
+                    '"organizationId", "createdAt", "updatedAt") '
+                    'VALUES (:i, :n, :p, 0, :r, :u, :c, :o, NOW(), NOW())'
+                ), {"i": str(uuid.uuid4()), "n": name, "p": number, "r": reorder,
+                    "u": unit, "c": category, "o": org.id})
+                created += 1
+
+        if not args.apply:
+            print(f"\n{len(PARTS)} parts. Read-only — re-run with --apply to write.")
+            return 0
+
+        db.commit()
+        print(f"\n{created} created, {updated} updated.\n")
+        return 0
+
+    finally:
+        db.close()
 
 
-@router.get("/reconcile")
-def run_reconcile(db: Session = Depends(get_db),
-                  user: dict = Depends(require_role(RoleEnum.ADMIN.value))):
-    """Cached balance vs ledger. A non-empty result is a bug, not a report."""
-    drift = reconcile(db)
-    return {"drift": drift, "clean": len(drift) == 0}
-
-
-@router.get("/{part_id}/movements")
-def part_movements(part_id: str, db: Session = Depends(get_db),
-                   user: dict = Depends(get_current_user)):
-    part = db.query(PartsInventory).filter(PartsInventory.id == part_id).first()
-    if not part or part.organizationId != user.get("orgId"):
-        raise HTTPException(status_code=404, detail="Part not found")
-
-    rows = (
-        db.query(StockMovement, User)
-        .outerjoin(User, User.id == StockMovement.createdBy)
-        .filter(StockMovement.partId == part_id)
-        .order_by(StockMovement.createdAt.desc())
-        .all()
-    )
-    return {
-        "part": _serialise(part),
-        "movements": [
-            {
-                "id": m.id,
-                "delta": float(m.delta),
-                "reason": m.reason,
-                "refType": m.refType,
-                "refId": m.refId,
-                "by": u.name if u else None,
-                "note": m.note,
-                "createdAt": m.createdAt.isoformat() if m.createdAt else None,
-            }
-            for m, u in rows
-        ],
-    }
-
-
-# ---------------------------------------------------------------------------
-# Create and edit the catalogue
-# ---------------------------------------------------------------------------
-
-class PartCreate(BaseModel):
-    name: str
-    partNumber: Optional[str] = None
-    unit: str = "pcs"
-    category: Optional[str] = None
-    reorderLevel: float = 0
-    organizationId: str
-    openingQuantity: float = Field(
-        default=0,
-        description="Stock counted on hand right now. Written as a ledger "
-                    "receipt, never as a bare number, so the balance has "
-                    "provenance from its first day.",
-    )
-
-    @field_validator("name")
-    @classmethod
-    def name_present(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("A part needs a name.")
-        return v.strip()
-
-    @field_validator("unit")
-    @classmethod
-    def unit_valid(cls, v: str) -> str:
-        if v not in VALID_UNITS:
-            raise ValueError(f"Unit must be one of: {', '.join(VALID_UNITS)}")
-        return v
-
-
-@router.post("/")
-def create_part(
-    body: PartCreate,
-    db: Session = Depends(get_db),
-    user: dict = Depends(require_role(*MANAGER)),
-):
-    """Add a new part type to the catalogue.
-
-    This is not the same act as receiving stock. Creating 'Copper pipe 1/2"'
-    says you now stock that item; receiving 50m says 50m arrived. Conflating
-    them is how inventory quietly stops matching the store.
-    """
-    if body.organizationId != user.get("orgId"):
-        raise HTTPException(status_code=403, detail="Wrong organisation")
-
-    if body.partNumber:
-        clash = db.query(PartsInventory).filter(
-            PartsInventory.organizationId == body.organizationId,
-            PartsInventory.partNumber == body.partNumber.strip(),
-        ).first()
-        if clash:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Part number {body.partNumber} already exists ({clash.name}).",
-            )
-
-    part = PartsInventory(
-        id=str(uuid.uuid4()),
-        name=body.name,
-        partNumber=(body.partNumber or "").strip() or None,
-        quantity=0,
-        reorderLevel=body.reorderLevel,
-        unit=body.unit,
-        category=(body.category or "").strip() or None,
-        organizationId=body.organizationId,
-        createdAt=_now(),
-        updatedAt=_now(),
-    )
-    db.add(part)
-    db.flush()
-
-    if body.openingQuantity and body.openingQuantity > 0:
-        record_movement(
-            db,
-            part_id=part.id,
-            delta=body.openingQuantity,
-            reason=StockReasonEnum.RECEIPT,
-            created_by=user["sub"],
-            ref_type="opening_balance",
-            note="Opening stock at catalogue creation",
-        )
-
-    db.commit()
-    db.refresh(part)
-    return _serialise(part)
-
-
-class PartUpdate(BaseModel):
-    name: Optional[str] = None
-    partNumber: Optional[str] = None
-    unit: Optional[str] = None
-    category: Optional[str] = None
-    reorderLevel: Optional[float] = None
-
-    @field_validator("unit")
-    @classmethod
-    def unit_valid(cls, v):
-        if v is not None and v not in VALID_UNITS:
-            raise ValueError(f"Unit must be one of: {', '.join(VALID_UNITS)}")
-        return v
-
-
-@router.patch("/{part_id}")
-def update_part(
-    part_id: str,
-    body: PartUpdate,
-    db: Session = Depends(get_db),
-    user: dict = Depends(require_role(*MANAGER)),
-):
-    """Edit the catalogue entry. Quantity is deliberately not editable here —
-    it moves only through the ledger."""
-    part = db.query(PartsInventory).filter(PartsInventory.id == part_id).first()
-    if not part or part.organizationId != user.get("orgId"):
-        raise HTTPException(status_code=404, detail="Part not found")
-
-    for key, value in body.model_dump(exclude_none=True).items():
-        setattr(part, key, value)
-    part.updatedAt = _now()
-
-    db.commit()
-    db.refresh(part)
-    return _serialise(part)
-
-
-# ---------------------------------------------------------------------------
-# Stock movement
-# ---------------------------------------------------------------------------
-
-class AdjustRequest(BaseModel):
-    delta: float = Field(description="Signed. Negative writes off, positive receives.")
-    reason: StockReasonEnum
-    note: Optional[str] = None
-
-
-@router.post("/{part_id}/adjust")
-def adjust_stock(
-    part_id: str,
-    body: AdjustRequest,
-    db: Session = Depends(get_db),
-    user: dict = Depends(require_role(*MANAGER)),
-):
-    """Receipts, write-offs and corrections. Never an UPDATE on quantity."""
-    part = db.query(PartsInventory).filter(PartsInventory.id == part_id).first()
-    if not part or part.organizationId != user.get("orgId"):
-        raise HTTPException(status_code=404, detail="Part not found")
-    if body.reason == StockReasonEnum.JOB_CONSUMPTION:
-        raise HTTPException(
-            status_code=422,
-            detail="Job consumption is written by report submission, not by hand.",
-        )
-    if body.delta == 0:
-        raise HTTPException(status_code=422, detail="A zero adjustment records nothing.")
-
-    record_movement(db, part_id=part_id, delta=body.delta, reason=body.reason,
-                    created_by=user["sub"], ref_type="manual", note=body.note)
-    db.commit()
-    db.refresh(part)
-    return {"part": _serialise(part), "delta": body.delta}
-
-
-class ReceiveRequest(BaseModel):
-    quantity: float
-    note: Optional[str] = None
-
-    @field_validator("quantity")
-    @classmethod
-    def positive(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("Received quantity must be greater than zero.")
-        return v
-
-
-@router.post("/{part_id}/receive")
-def receive_stock(
-    part_id: str,
-    body: ReceiveRequest,
-    db: Session = Depends(get_db),
-    user: dict = Depends(require_role(*MANAGER)),
-):
-    """Stock arriving from a supplier. A plain-language wrapper over adjust,
-    because 'receive 50' is what actually happens and 'delta +50' is not."""
-    part = db.query(PartsInventory).filter(PartsInventory.id == part_id).first()
-    if not part or part.organizationId != user.get("orgId"):
-        raise HTTPException(status_code=404, detail="Part not found")
-
-    record_movement(db, part_id=part_id, delta=body.quantity,
-                    reason=StockReasonEnum.RECEIPT, created_by=user["sub"],
-                    ref_type="manual", note=body.note)
-    db.commit()
-    db.refresh(part)
-    return {"part": _serialise(part), "received": body.quantity}
+if __name__ == "__main__":
+    raise SystemExit(main())

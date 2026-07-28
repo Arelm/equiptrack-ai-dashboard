@@ -1,4 +1,4 @@
-﻿"""Import technicians from a CSV file.
+"""Import technicians from a CSV file.
 
 Editing a Python list to onboard staff does not scale and puts names in git.
 This reads a file that stays on your machine.

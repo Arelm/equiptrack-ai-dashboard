@@ -14,7 +14,7 @@ export default function LoginPage() {
 
   async function handleLogin() {
     if (!email || !password) {
-      setError("Enter your email and password.");
+      setError("Enter your phone number or email, and your password.");
       return;
     }
     setBusy(true);
@@ -53,15 +53,18 @@ export default function LoginPage() {
           )}
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Email</label>
+            <label className="text-sm font-medium text-gray-700">
+                Phone number or email
+              </label>
             <input
-              type="email"
+              type="text"
+                inputMode="text"
+                placeholder="08012345678"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              placeholder="you@company.com"
               className="w-full rounded border px-3 py-2 text-sm"
-              autoComplete="email"
+              autoComplete="username"
             />
           </div>
 

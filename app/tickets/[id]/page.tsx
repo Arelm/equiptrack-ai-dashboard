@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { mapPriority, mapStatus } from '@/lib/api'
 import { apiFetch, getUser } from '@/lib/authClient'
+import { TicketReportPanel } from '@/components/ticket-report-panel'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
@@ -210,6 +211,8 @@ async function load() {
           )}
         </div>
       </div>
+
+      <TicketReportPanel workOrderId={ticket.id} />
 
       {/* Service History */}
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">

@@ -13,9 +13,10 @@ is created for them and they get no row in "User".
 Retired plots are deactivated rather than deleted, so the work orders
 raised against them keep their history.
 
-Reads are open to any signed-in user, because a technician needs to
-see the site they are dispatched to. Writes are manager and admin
-only, matching parts and assignments.
+Reads stay open because the public client portal depends on them.
+Writes are manager and admin only, matching parts and assignments.
+Locking down reads is a separate decision and needs the portal to get
+its own scoped access first.
 """
 
 import uuid
@@ -27,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Location, RoleEnum
-from routers.auth import get_current_user, require_role
+from routers.auth import require_role
 
 router = APIRouter()
 
@@ -92,9 +93,14 @@ def get_locations(
     organizationId: str,
     includeInactive: bool = False,
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
 ):
-    """Active sites by default. Dropdowns should never offer a dead plot."""
+    """Active sites by default. Dropdowns should never offer a dead plot.
+
+    Deliberately unauthenticated. The client portal service request form
+    is a public page: a Sterling Oil contact picks their site before any
+    login exists. Requiring a token here bounces them to a login screen
+    they have no account for. Writes below are locked down instead.
+    """
     query = db.query(Location).filter(Location.organizationId == organizationId)
     if not includeInactive:
         query = query.filter(Location.isActive.is_(True))
@@ -105,7 +111,6 @@ def get_locations(
 def get_location(
     location_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
 ):
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:

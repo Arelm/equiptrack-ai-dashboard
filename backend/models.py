@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Enum as SAEnum
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Enum as SAEnum, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -146,8 +146,10 @@ class PartsInventory(Base):
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     partNumber = Column(String)
-    quantity = Column(Integer, default=0)
-    reorderLevel = Column(Integer, default=5)
+    quantity = Column(Numeric(12, 2), default=0)
+    reorderLevel = Column(Numeric(12, 2), default=5)
+    unit = Column(String, default="pcs", nullable=False)
+    category = Column(String)
     unitCost = Column(Float)
     organizationId = Column(String, ForeignKey("Organization.id"))
     createdAt = Column(DateTime, server_default=func.now())
@@ -158,7 +160,7 @@ class PartsUsed(Base):
     id = Column(String, primary_key=True)
     maintenanceLogId = Column(String, ForeignKey("MaintenanceLog.id"))
     partId = Column(String, ForeignKey("PartsInventory.id"))
-    quantityUsed = Column(Integer, nullable=False)
+    quantityUsed = Column(Numeric(12, 2), nullable=False)
     partNameRaw = Column(String)
     source = Column(String)
     createdAt = Column(DateTime, server_default=func.now())
@@ -183,7 +185,7 @@ class StockMovement(Base):
     __tablename__ = "StockMovement"
     id = Column(String, primary_key=True)
     partId = Column(String, ForeignKey("PartsInventory.id"), nullable=False)
-    delta = Column(Integer, nullable=False)          # negative consumes, positive receives
+    delta = Column(Numeric(12, 2), nullable=False)          # negative consumes, positive receives          # negative consumes, positive receives
     reason = Column(String, nullable=False)
     refType = Column(String)
     refId = Column(String)

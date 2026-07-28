@@ -1,0 +1,25 @@
+
+EMAIL                            NAME                   ROLE         CAN LOG IN
+----------------------------------------------------------------------------------
+info@inahmedia.com               okoi inah odum         ADMIN        yes
+
+
+Organisation: JDAEM Enterprise Limited  (9cc8f40a-92a1-4361-b566-d79b65b9c38d)
+
+EMAIL                            NAME                   ROLE         CAN LOG IN
+----------------------------------------------------------------------------------
+info@inahmedia.com               okoi inah odum         ADMIN        yes
+
+==================================================================================
+  CREDENTIALS — shown once. Copy them now, then close this terminal.
+==================================================================================
+  ops@jdaem.com.ng                 x2js-3h6b-8fvz   MANAGER      (account created)
+  tech1@jdaem.com.ng               bysm-3dwp-zrpd   TECHNICIAN   (account created)
+  tech2@jdaem.com.ng               sk5p-4p4c-mk6c   TECHNICIAN   (account created)
+  tech3@jdaem.com.ng               7tg5-aud6-gahk   TECHNICIAN   (account created)
+  tech4@jdaem.com.ng               gxpy-wwsy-w8fs   TECHNICIAN   (account created)
+  tech5@jdaem.com.ng               autx-sbkj-qm6b   TECHNICIAN   (account created)
+==================================================================================
+  Send each technician his own line only, by WhatsApp, and ask him to
+  log in once today so you know the account works before it matters.
+==================================================================================

@@ -29,9 +29,11 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [checked, setChecked] = useState(false)
 
   useEffect(() => {
     setUser(getUser())
+    setChecked(true)
   }, [])
 
   function signOut() {
@@ -39,9 +41,14 @@ export function Sidebar() {
     window.location.href = "/login"
   }
 
-  const initials = user
+  const initials = !checked
+    ? ""
+    : user
     ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "—"
+  const displayName = !checked ? "\u00A0" : user?.name ?? "Not signed in"
+  const displayEmail = !checked ? "\u00A0" : user?.email ?? "\u2014"
+
 
   return (
     <aside className="flex w-full shrink-0 flex-col bg-sidebar text-sidebar-foreground md:h-dvh md:w-72 md:sticky md:top-0">
@@ -95,13 +102,14 @@ export function Sidebar() {
 
           <div className="min-w-0 flex-1 text-xs">
             <p className="truncate font-medium text-sidebar-foreground">
-              {user?.name ?? "Not signed in"}
+              {displayName}
             </p>
-            <p className="truncate text-sidebar-foreground/55">{user?.email ?? "—"}</p>
+            <p className="truncate text-sidebar-foreground/55">{displayEmail}</p>
           </div>
 
           <button
             type="button"
+            disabled={!checked}
             onClick={user ? signOut : () => { window.location.href = "/login" }}
             aria-label={user ? "Sign out" : "Sign in"}
             title={user ? "Sign out" : "Sign in"}

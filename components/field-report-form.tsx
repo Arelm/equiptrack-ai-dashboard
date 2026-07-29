@@ -173,7 +173,9 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
         if (l.partId === NOT_LISTED && !l.partNameRaw.trim()) {
           return setError("Type the name of the part that is not listed.")
         }
-        if (!l.quantity || l.quantity < 1) return setError("Quantity must be at least 1.")
+        if (!l.quantity || l.quantity <= 0) {
+          return setError("Quantity must be greater than zero.")
+        }
       }
     }
 
@@ -326,7 +328,8 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
                     <div className="w-24">
                       <input
                         type="number"
-                        min="1"
+                        min="0.01"
+                        step="0.01"
                         value={line.quantity}
                         onChange={(e) =>
                           updateLine(line.key, { quantity: Number(e.target.value) })

@@ -10,6 +10,7 @@ this removes the dropdown from existence.
 
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -49,14 +50,16 @@ class PartLine(BaseModel):
         description='Free text from "Part not listed". A technician who cannot '
                     'find his part will otherwise log nothing at all.',
     )
-    quantity: int = 1
+    quantity: Decimal = Decimal("1")
     source: PartSourceEnum
 
     @field_validator("quantity")
     @classmethod
-    def positive(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("Quantity must be at least 1.")
+    def positive(cls, v: Decimal) -> Decimal:
+        # Not "at least 1" - half a metre of insulation is a real quantity.
+        # Zero is not: a line with no quantity is a line that should not exist.
+        if v <= 0:
+            raise ValueError("Quantity must be greater than zero.")
         return v
 
     @model_validator(mode="after")

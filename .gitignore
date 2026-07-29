@@ -24,3 +24,8 @@ tsconfig.tsbuildinfo
 .mypy_cache/
 
 technicians.csv
+
+# local scratch 
+*.backup_* 
+patch_*.py 
+sb.txt

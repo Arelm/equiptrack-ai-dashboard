@@ -34,7 +34,7 @@ export function Sidebar() {
   useEffect(() => {
     setUser(getUser())
     setChecked(true)
-  }, [])
+  }, [pathname])
 
   function signOut() {
     clearAuth()

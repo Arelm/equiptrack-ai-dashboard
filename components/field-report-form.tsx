@@ -17,6 +17,27 @@ const SOURCES = [
 
 const NOT_LISTED = "__not_listed__"
 
+/** FastAPI returns validation errors as an array of {loc, msg}. Showing
+ *  "Submission failed (422)" throws away the only useful part: which field
+ *  was rejected. A technician standing in a plant room cannot act on a
+ *  status code. */
+function formatDetail(detail: unknown, status: number): string {
+  if (typeof detail === "string") return detail
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((e) => {
+        const loc = Array.isArray(e?.loc)
+          ? e.loc.filter((s: unknown) => s !== "body").join(" \u2192 ")
+          : ""
+        const msg = e?.msg ?? "invalid value"
+        return loc ? `${loc}: ${msg}` : String(msg)
+      })
+      .filter(Boolean)
+    if (parts.length) return parts.join(" | ")
+  }
+  return `Submission failed (${status}).`
+}
+
 export type CatalogPart = {
   id: string
   name: string
@@ -175,7 +196,7 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
 
       if (!res.ok) {
         const detail = (await res.json().catch(() => ({}))).detail
-        setError(typeof detail === "string" ? detail : `Submission failed (${res.status}).`)
+        setError(formatDetail(detail, res.status))
         return
       }
 

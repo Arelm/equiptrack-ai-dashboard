@@ -57,6 +57,28 @@ class StockReasonEnum(str, enum.Enum):
     RETURN = "return"
     CORRECTION = "correction"
     
+class FaultCategoryEnum(str, enum.Enum):
+    REFRIGERANT_LEAKAGE = "REFRIGERANT_LEAKAGE"
+    LOW_REFRIGERANT = "LOW_REFRIGERANT"
+    CONDENSER_LEAKAGE = "CONDENSER_LEAKAGE"
+    EVAPORATOR_LEAKAGE = "EVAPORATOR_LEAKAGE"
+    COMPRESSOR_FAULT = "COMPRESSOR_FAULT"
+    CAPACITOR_FAULT = "CAPACITOR_FAULT"
+    CONTACTOR_FAULT = "CONTACTOR_FAULT"
+    FAN_MOTOR_FAULT = "FAN_MOTOR_FAULT"
+    BLOWER_FAULT = "BLOWER_FAULT"
+    CAPILLARY_BLOCK = "CAPILLARY_BLOCK"
+    FILTER_BLOCKED = "FILTER_BLOCKED"
+    DRAINAGE_BLOCK = "DRAINAGE_BLOCK"
+    AIRFLOW_DUCTING = "AIRFLOW_DUCTING"
+    ELECTRICAL_SUPPLY = "ELECTRICAL_SUPPLY"
+    LOW_VOLTAGE = "LOW_VOLTAGE"
+    PANEL_FAULT = "PANEL_FAULT"
+    THERMOSTAT_CONTROL = "THERMOSTAT_CONTROL"
+    ERROR_CODE = "ERROR_CODE"
+    ROUTINE_SERVICE = "ROUTINE_SERVICE"
+    OTHER = "OTHER"
+    
 class Organization(Base):
     __tablename__ = "Organization"
     id = Column(String, primary_key=True)
@@ -144,6 +166,7 @@ class MaintenanceLog(Base):
     notes = Column(String)
     hoursSpent = Column(Float)
     partsUsedDeclared = Column(Boolean)
+    faultCategory = Column(SAEnum(FaultCategoryEnum, name="FaultCategory"))
     createdAt = Column(DateTime, server_default=func.now())
 
 class PartsInventory(Base):

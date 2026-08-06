@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import (
     AuditLog,
+    FaultCategoryEnum,
     MaintenanceLog,
     PartsInventory,
     PartsUsed,
@@ -75,6 +76,11 @@ class ReportCreate(BaseModel):
     partsUsed: bool = Field(
         description="Explicit declaration. False means the technician stated no "
                     "parts were needed — a real and useful data point, not a blank."
+    )
+    faultCategory: FaultCategoryEnum = Field(
+        description="What the technician actually found. The client's complaint "
+                    "describes a symptom; this is the diagnosis. Required — an "
+                    "uncategorised report is invisible to the annual fault analysis."
     )
     parts: List[PartLine] = []
     overrideReason: Optional[str] = None
@@ -176,6 +182,7 @@ def submit_report(
         notes=body.notes,
         hoursSpent=body.hoursSpent,
         partsUsedDeclared=body.partsUsed,
+        faultCategory=body.faultCategory,
         createdAt=now,
     ))
 
@@ -281,6 +288,7 @@ def _serialise(db: Session, log: MaintenanceLog) -> dict:
         "notes": log.notes,
         "hoursSpent": log.hoursSpent,
         "partsUsedDeclared": log.partsUsedDeclared,
+        "faultCategory": log.faultCategory.value if log.faultCategory else None,
         "createdAt": log.createdAt.isoformat() if log.createdAt else None,
         "parts": [
             {

@@ -15,6 +15,57 @@ const SOURCES = [
   { value: "client_supplied", label: "Client supplied" },
 ] as const
 
+/** Grouped so a technician scanning twenty options on a phone finds his
+ *  fault by family rather than picking the first plausible label. The
+ *  grouping is cosmetic; only the value reaches Aurora. */
+const FAULT_GROUPS = [
+  {
+    label: "Refrigerant",
+    options: [
+      { value: "REFRIGERANT_LEAKAGE", label: "Refrigerant leakage" },
+      { value: "LOW_REFRIGERANT", label: "Low refrigerant (no leak found)" },
+      { value: "CONDENSER_LEAKAGE", label: "Condenser leakage" },
+      { value: "EVAPORATOR_LEAKAGE", label: "Evaporator leakage" },
+    ],
+  },
+  {
+    label: "Motors & compressor",
+    options: [
+      { value: "COMPRESSOR_FAULT", label: "Compressor fault" },
+      { value: "FAN_MOTOR_FAULT", label: "Fan motor fault" },
+      { value: "BLOWER_FAULT", label: "Blower fault" },
+    ],
+  },
+  {
+    label: "Electrical",
+    options: [
+      { value: "CAPACITOR_FAULT", label: "Capacitor fault" },
+      { value: "CONTACTOR_FAULT", label: "Contactor fault" },
+      { value: "ELECTRICAL_SUPPLY", label: "Electrical supply fault" },
+      { value: "LOW_VOLTAGE", label: "Low voltage" },
+      { value: "PANEL_FAULT", label: "Panel fault" },
+      { value: "THERMOSTAT_CONTROL", label: "Thermostat / control fault" },
+    ],
+  },
+  {
+    label: "Blockages & airflow",
+    options: [
+      { value: "FILTER_BLOCKED", label: "Filter blocked" },
+      { value: "DRAINAGE_BLOCK", label: "Drainage blocked" },
+      { value: "CAPILLARY_BLOCK", label: "Capillary blocked" },
+      { value: "AIRFLOW_DUCTING", label: "Airflow / ducting issue" },
+    ],
+  },
+  {
+    label: "Other",
+    options: [
+      { value: "ROUTINE_SERVICE", label: "Routine service — no fault found" },
+      { value: "ERROR_CODE", label: "Error code shown — cause not determined" },
+      { value: "OTHER", label: "Other" },
+    ],
+  },
+] as const
+
 const NOT_LISTED = "__not_listed__"
 
 /** FastAPI returns validation errors as an array of {loc, msg}. Showing
@@ -68,6 +119,7 @@ const draftKey = (id: string) => `equiptrack_report_draft_${id}`
 
 export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitted }: Props) {
   const [notes, setNotes] = useState("")
+  const [faultCategory, setFaultCategory] = useState("")
   const [hoursSpent, setHoursSpent] = useState("")
   const [declaration, setDeclaration] = useState<"" | "none" | "some">("")
   const [lines, setLines] = useState<PartLine[]>([])
@@ -86,6 +138,7 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
       if (!raw) return
       const d = JSON.parse(raw)
       setNotes(d.notes ?? "")
+      setFaultCategory(d.faultCategory ?? "")
       setHoursSpent(d.hoursSpent ?? "")
       setDeclaration(d.declaration ?? "")
       setLines(d.lines ?? [])
@@ -102,12 +155,12 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
     try {
       localStorage.setItem(
         draftKey(workOrderId),
-        JSON.stringify({ notes, hoursSpent, declaration, lines }),
+        JSON.stringify({ notes, faultCategory, hoursSpent, declaration, lines }),
       )
     } catch {
       /* storage full or blocked — never block the form on it */
     }
-  }, [workOrderId, notes, hoursSpent, declaration, lines, submitted])
+  }, [workOrderId, notes, faultCategory, hoursSpent, declaration, lines, submitted])
 
   function addLine() {
     setLines((prev) => [
@@ -159,6 +212,7 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
     setError(null)
 
     if (!notes.trim()) return setError("Work notes are required.")
+    if (!faultCategory) return setError("Select what you found on the unit.")
     if (!declaration) {
       return setError('Say whether parts were used. "No parts needed" is a valid answer.')
     }
@@ -185,6 +239,7 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
         method: "POST",
         body: JSON.stringify({
           notes: notes.trim(),
+          faultCategory,
           hoursSpent: hoursSpent ? Number(hoursSpent) : null,
           partsUsed: declaration === "some",
           parts: lines.map((l) => ({
@@ -242,6 +297,31 @@ export function FieldReportForm({ workOrderId, workOrderTitle, parts, onSubmitte
         </p>
       )}
 
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="fault" className="text-xs font-medium text-foreground">
+          What did you find?
+        </label>
+        <select
+          id="fault"
+          value={faultCategory}
+          onChange={(e) => setFaultCategory(e.target.value)}
+          className={fieldClass}
+        >
+          <option value="">Select the fault found…</option>
+          {FAULT_GROUPS.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          What you found on the unit — not what the client reported.
+        </p>
+      </div>
       <div className="flex flex-col gap-1.5">
         <label htmlFor="notes" className="text-xs font-medium text-foreground">
           Work notes

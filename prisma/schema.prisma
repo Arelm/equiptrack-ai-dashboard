@@ -41,6 +41,11 @@ model Location {
   id             String   @id @default(cuid())
   name           String
   address        String?
+  client          String?
+  supervisorName  String?
+  supervisorPhone String?
+  area            String?
+  isActive        Boolean  @default(true)
   organizationId String
   createdAt      DateTime @default(now())
 
@@ -106,6 +111,7 @@ model MaintenanceLog {
   assetId     String
   userId      String
   notes       String?
+  faultCategory FaultCategory?
   hoursSpent  Float?
   createdAt   DateTime @default(now())
 
@@ -196,4 +202,27 @@ enum Severity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum FaultCategory {
+  REFRIGERANT_LEAKAGE
+  LOW_REFRIGERANT
+  CONDENSER_LEAKAGE
+  EVAPORATOR_LEAKAGE
+  COMPRESSOR_FAULT
+  CAPACITOR_FAULT
+  CONTACTOR_FAULT
+  FAN_MOTOR_FAULT
+  BLOWER_FAULT
+  CAPILLARY_BLOCK
+  FILTER_BLOCKED
+  DRAINAGE_BLOCK
+  AIRFLOW_DUCTING
+  ELECTRICAL_SUPPLY
+  LOW_VOLTAGE
+  PANEL_FAULT
+  THERMOSTAT_CONTROL
+  ERROR_CODE
+  ROUTINE_SERVICE
+  OTHER
 }

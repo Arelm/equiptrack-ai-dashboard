@@ -76,7 +76,7 @@ async function load() {
 
         setTicket({
           id: wo.id,
-         client: 'JDAEM Enterprise Limited',
+         client: location?.client ?? '—',
           facility: location?.name ?? '—',
           asset: asset?.name ?? '—',
           assetId: wo.assetId ?? null,

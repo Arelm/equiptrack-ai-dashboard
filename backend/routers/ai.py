@@ -131,6 +131,8 @@ def _asset_history(db: Session, asset_id: str, exclude_wo: str) -> str:
         log = db.query(MaintenanceLog).filter(MaintenanceLog.workOrderId == w.id).first()
         if not log:
             continue
+        if log.faultCategory:
+            lines.append(f"    Diagnosis: {log.faultCategory.value}")
         if log.notes:
             lines.append(f"    Work done: {log.notes}")
         if log.partsUsedDeclared is False:

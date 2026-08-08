@@ -61,6 +61,13 @@ def _serialise(wo: WorkOrder, db: Session) -> dict:
     if wo.createdAt:
         age_hours = round((_now() - wo.createdAt).total_seconds() / 3600, 1)
 
+    # Age as the client experiences it. A ticket raised on their portal on the
+    # 5th and entered here on the 8th is three days old to them and zero days
+    # old to us; theirs is the number that belongs in a client report.
+    client_age_hours = None
+    if wo.reportedAt:
+        client_age_hours = round((_now() - wo.reportedAt).total_seconds() / 3600, 1)
+
     return {
         "id": wo.id,
         "title": wo.title,
@@ -79,6 +86,13 @@ def _serialise(wo: WorkOrder, db: Session) -> dict:
         "technician": technician,
         "ageHours": age_hours,
         "ageDays": round(age_hours / 24, 1) if age_hours is not None else None,
+        "clientAgeHours": client_age_hours,
+        "clientAgeDays": (round(client_age_hours / 24, 1)
+                          if client_age_hours is not None else None),
+        "externalRef": wo.externalRef,
+        "reportedBy": wo.reportedBy,
+        "clientCategory": wo.clientCategory,
+        "sourceType": wo.sourceType,
     }
 
 
@@ -132,6 +146,109 @@ def create_workorder(
     db.commit()
     db.refresh(db_wo)
     return _serialise(db_wo, db)
+
+
+class TicketIntake(BaseModel):
+    """A client ticket copied from the printed helpdesk sheet.
+
+    One form per printout. The completion fields at the bottom are optional:
+    fill them in for a job already finished and the ticket lands COMPLETED
+    with its maintenance log attached; leave them blank for a job still
+    outstanding and it stays OPEN to be closed later.
+    """
+    title: str
+    description: Optional[str] = None
+    priority: PriorityEnum = PriorityEnum.MEDIUM
+    organizationId: str
+    assetId: Optional[str] = None
+    locationId: Optional[str] = None
+    dueDate: Optional[datetime] = None
+
+    # provenance, from the printout
+    reportedAt: Optional[datetime] = None
+    externalRef: Optional[str] = None
+    reportedBy: Optional[str] = None
+    clientCategory: Optional[str] = None
+
+    # completion - all or nothing
+    faultCategory: Optional[str] = None
+    notes: Optional[str] = None
+    hoursSpent: Optional[float] = None
+    partsUsedDeclared: Optional[bool] = None
+
+
+@router.post("/from-ticket")
+def create_from_ticket(
+    intake: TicketIntake,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role(RoleEnum.TECHNICIAN.value,
+                                      RoleEnum.MANAGER.value,
+                                      RoleEnum.ADMIN.value)),
+):
+    """Technician entry of a printed client ticket.
+
+    Distinct from the public POST / intake: that one is open so a client can
+    report a fault without an account, and therefore cannot be trusted with
+    provenance. Here the caller is authenticated, so reportedAt and the client
+    case reference are recorded as stated.
+    """
+    if intake.organizationId != user.get("orgId"):
+        raise HTTPException(status_code=403, detail="Wrong organisation")
+
+    now = _now()
+    reported = intake.reportedAt or now
+    if reported > now:
+        raise HTTPException(
+            status_code=422,
+            detail="reportedAt is in the future - check the date on the printout.",
+        )
+
+    completing = intake.faultCategory is not None
+    if completing and not intake.assetId:
+        raise HTTPException(
+            status_code=422,
+            detail="Attach the asset before closing a ticket - the fault has to land on a machine.",
+        )
+
+    wo = WorkOrder(
+        id=str(uuid.uuid4()),
+        title=intake.title,
+        description=intake.description,
+        priority=intake.priority,
+        organizationId=intake.organizationId,
+        assetId=intake.assetId,
+        locationId=intake.locationId,
+        dueDate=intake.dueDate,
+        reportedAt=reported,
+        externalRef=intake.externalRef,
+        reportedBy=intake.reportedBy,
+        clientCategory=intake.clientCategory,
+        sourceType="PORTAL_PRINTOUT",
+        status=(WorkOrderStatusEnum.COMPLETED if completing
+                else WorkOrderStatusEnum.OPEN),
+        completedAt=now if completing else None,
+        isLegacy=False,
+        createdAt=now,
+        updatedAt=now,
+    )
+    db.add(wo)
+
+    if completing:
+        db.add(MaintenanceLog(
+            id=str(uuid.uuid4()),
+            workOrderId=wo.id,
+            assetId=intake.assetId,
+            userId=user.get("sub") or user.get("id"),
+            notes=intake.notes,
+            hoursSpent=intake.hoursSpent,
+            partsUsedDeclared=bool(intake.partsUsedDeclared),
+            faultCategory=intake.faultCategory,
+            createdAt=now,
+        ))
+
+    db.commit()
+    db.refresh(wo)
+    return _serialise(wo, db)
 
 
 @router.patch("/{wo_id}")

@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { CheckCircle2, Loader2, MapPin, Pencil, X } from "lucide-react"
+import { CheckCircle2, Loader2, MapPin, Package, Pencil, X } from "lucide-react"
 
+import { AssetManager } from "@/components/asset-manager"
 import { Button } from "@/components/ui/button"
 import { apiFetch } from "@/lib/authClient"
 
@@ -58,6 +59,10 @@ export function LocationsManager({ organizationId }: Props) {
   const [saved, setSaved] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  // Which site's assets are open, if any. There is no asset editor
+  // elsewhere in the app, so corrections happen here.
+  const [assetsFor, setAssetsFor] = useState<BackendLocation | null>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
@@ -108,6 +113,15 @@ export function LocationsManager({ organizationId }: Props) {
     setEditingId(null)
     setForm({ ...EMPTY })
     setError(null)
+  }
+
+  function showAssets(location: BackendLocation) {
+    setAssetsFor(location)
+    setError(null)
+    setSaved(null)
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
   }
 
   async function readError(res: Response, fallback: string) {
@@ -327,6 +341,22 @@ export function LocationsManager({ organizationId }: Props) {
         </div>
       )}
 
+      {/* ---- Assets for one site ---- */}
+      {assetsFor && (
+        <AssetManager
+          key={assetsFor.id}
+          locationId={assetsFor.id}
+          locationName={assetsFor.name}
+          organizationId={organizationId}
+          sites={locations.map((l) => ({
+            id: l.id,
+            name: l.name,
+            isActive: l.isActive,
+          }))}
+          onClose={() => setAssetsFor(null)}
+        />
+      )}
+
       {/* ---- List ---- */}
       <section className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -416,6 +446,15 @@ export function LocationsManager({ organizationId }: Props) {
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => showAssets(location)}
+                        >
+                          <Package className="mr-1 size-3" />
+                          Assets
+                        </Button>
                         <Button
                           type="button"
                           variant="outline"

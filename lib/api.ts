@@ -1,4 +1,5 @@
 import type { Priority, Status } from "@/lib/data"
+import { apiFetch } from "@/lib/authClient"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
@@ -212,10 +213,8 @@ export async function createAsset(payload: {
   locationId?: string
   serialNumber?: string
 }): Promise<BackendAsset> {
-  const base = requireApiBase()
-  const res = await fetch(`${base}/api/assets/`, {
+  const res = await apiFetch(`/api/assets/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
   if (!res.ok) {

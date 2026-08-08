@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Asset, AssetStatusEnum
+from models import Asset, AssetStatusEnum, RoleEnum
+from routers.auth import get_current_user, require_role
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -25,18 +26,21 @@ class AssetUpdate(BaseModel):
     warrantyExpiry: Optional[datetime] = None
 
 @router.get("/")
-def get_assets(organizationId: str, db: Session = Depends(get_db)):
+def get_assets(organizationId: str, db: Session = Depends(get_db),
+               user: dict = Depends(get_current_user)):
     return db.query(Asset).filter(Asset.organizationId == organizationId).all()
 
 @router.get("/{asset_id}")
-def get_asset(asset_id: str, db: Session = Depends(get_db)):
+def get_asset(asset_id: str, db: Session = Depends(get_db),
+              user: dict = Depends(get_current_user)):
     asset = db.query(Asset).filter(Asset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset
 
 @router.post("/")
-def create_asset(asset: AssetCreate, db: Session = Depends(get_db)):
+def create_asset(asset: AssetCreate, db: Session = Depends(get_db),
+                 user: dict = Depends(require_role(RoleEnum.MANAGER.value, RoleEnum.ADMIN.value))):
     now = datetime.utcnow()
     db_asset = Asset(
         id=str(uuid.uuid4()),
@@ -50,7 +54,8 @@ def create_asset(asset: AssetCreate, db: Session = Depends(get_db)):
     return db_asset
 
 @router.patch("/{asset_id}")
-def update_asset(asset_id: str, update: AssetUpdate, db: Session = Depends(get_db)):
+def update_asset(asset_id: str, update: AssetUpdate, db: Session = Depends(get_db),
+                 user: dict = Depends(require_role(RoleEnum.MANAGER.value, RoleEnum.ADMIN.value))):
     asset = db.query(Asset).filter(Asset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
@@ -61,7 +66,8 @@ def update_asset(asset_id: str, update: AssetUpdate, db: Session = Depends(get_d
     return asset
 
 @router.delete("/{asset_id}")
-def delete_asset(asset_id: str, db: Session = Depends(get_db)):
+def delete_asset(asset_id: str, db: Session = Depends(get_db),
+                 user: dict = Depends(require_role(RoleEnum.MANAGER.value, RoleEnum.ADMIN.value))):
     asset = db.query(Asset).filter(Asset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")

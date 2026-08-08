@@ -29,3 +29,13 @@ technicians.csv
 *.backup_* 
 patch_*.py 
 sb.txt
+
+# backups and Office lock files
+*.bak
+~$*
+
+# source registers and scratch output
+*.xlsx
+fr.txt
+rp.txt
+wo.txt

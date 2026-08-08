@@ -97,8 +97,7 @@ export type BackendWorkOrder = {
 // not a client-side network call.
 
 export async function fetchOrganizations(): Promise<BackendOrganization[]> {
-  const base = requireApiBase()
-  const res = await fetch(`${base}/api/organizations/`, { cache: "no-store" })
+  const res = await apiFetch(`/api/organizations/`, { cache: "no-store" })
   if (!res.ok) {
     throw new Error(`Failed to fetch organizations: ${res.status} ${res.statusText}`)
   }
@@ -120,11 +119,10 @@ export async function fetchPrimaryOrganization(): Promise<BackendOrganization> {
 }
 
 export async function fetchWorkOrders(organizationId?: string): Promise<BackendWorkOrder[]> {
-  const base = requireApiBase()
   const url = organizationId
-    ? `${base}/api/workorders/?organizationId=${encodeURIComponent(organizationId)}`
-    : `${base}/api/workorders/`
-  const res = await fetch(url, { cache: "no-store" })
+    ? `/api/workorders/?organizationId=${encodeURIComponent(organizationId)}`
+    : `/api/workorders/`
+  const res = await apiFetch(url, { cache: "no-store" })
   if (!res.ok) {
     throw new Error(`Failed to fetch work orders: ${res.status} ${res.statusText}`)
   }
@@ -132,11 +130,10 @@ export async function fetchWorkOrders(organizationId?: string): Promise<BackendW
 }
 
 export async function fetchAssets(organizationId?: string): Promise<BackendAsset[]> {
-  const base = requireApiBase()
   const url = organizationId
-    ? `${base}/api/assets/?organizationId=${encodeURIComponent(organizationId)}`
-    : `${base}/api/assets/`
-  const res = await fetch(url, { cache: "no-store" })
+    ? `/api/assets/?organizationId=${encodeURIComponent(organizationId)}`
+    : `/api/assets/`
+  const res = await apiFetch(url, { cache: "no-store" })
   if (!res.ok) {
     throw new Error(`Failed to fetch assets: ${res.status} ${res.statusText}`)
   }
@@ -144,11 +141,10 @@ export async function fetchAssets(organizationId?: string): Promise<BackendAsset
 }
 
 export async function fetchLocations(organizationId?: string): Promise<BackendLocation[]> {
-  const base = requireApiBase()
   const url = organizationId
-    ? `${base}/api/locations/?organizationId=${encodeURIComponent(organizationId)}`
-    : `${base}/api/locations/`
-  const res = await fetch(url, { cache: "no-store" })
+    ? `/api/locations/?organizationId=${encodeURIComponent(organizationId)}`
+    : `/api/locations/`
+  const res = await apiFetch(url, { cache: "no-store" })
   if (!res.ok) {
     throw new Error(`Failed to fetch locations: ${res.status} ${res.statusText}`)
   }
@@ -156,8 +152,7 @@ export async function fetchLocations(organizationId?: string): Promise<BackendLo
 }
 
 export async function fetchWorkOrderById(id: string): Promise<BackendWorkOrder> {
-  const base = requireApiBase()
-  const res = await fetch(`${base}/api/workorders/${encodeURIComponent(id)}`, { cache: "no-store" })
+  const res = await apiFetch(`/api/workorders/${encodeURIComponent(id)}`, { cache: "no-store" })
   if (!res.ok) {
     throw new Error(`Failed to fetch work order ${id}: ${res.status} ${res.statusText}`)
   }
@@ -172,10 +167,8 @@ export async function createWorkOrder(payload: {
   assetId?: string
   locationId?: string
 }): Promise<BackendWorkOrder> {
-  const base = requireApiBase()
-  const res = await fetch(`${base}/api/workorders/`, {
+  const res = await apiFetch(`/api/workorders/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
   if (!res.ok) {

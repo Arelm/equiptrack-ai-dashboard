@@ -17,39 +17,32 @@ import {
 const fieldClass =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/30"
 
-const priorities = ["High", "Medium", "Low"] as const
+const priorities = ["Critical", "High", "Medium", "Low"] as const
 type Priority = (typeof priorities)[number]
 
 const clientCategories = ["AC Works", "Electrical", "Plumbing", "Civil", "Other"]
-
-const faultCategories: [string, string][] = [
-  ["REFRIGERANT_LEAKAGE", "Refrigerant leakage"],
-  ["LOW_REFRIGERANT", "Low refrigerant"],
-  ["CONDENSER_LEAKAGE", "Condenser leakage"],
-  ["EVAPORATOR_LEAKAGE", "Evaporator leakage"],
-  ["COMPRESSOR_FAULT", "Compressor fault"],
-  ["CAPACITOR_FAULT", "Capacitor fault"],
-  ["CONTACTOR_FAULT", "Contactor fault"],
-  ["FAN_MOTOR_FAULT", "Fan motor fault"],
-  ["BLOWER_FAULT", "Blower fault"],
-  ["CAPILLARY_BLOCK", "Capillary block"],
-  ["FILTER_BLOCKED", "Filter blocked"],
-  ["DRAINAGE_BLOCK", "Drainage block"],
-  ["AIRFLOW_DUCTING", "Airflow / ducting"],
-  ["ELECTRICAL_SUPPLY", "Electrical supply"],
-  ["LOW_VOLTAGE", "Low voltage"],
-  ["PANEL_FAULT", "Panel fault"],
-  ["THERMOSTAT_CONTROL", "Thermostat / control"],
-  ["ERROR_CODE", "Error code"],
-  ["ROUTINE_SERVICE", "Routine service"],
-  ["OTHER", "Other"],
-]
 
 function today(): string {
   const d = new Date()
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 10)
+}
+
+function readableError(message: string): string {
+  if (/failed to fetch/i.test(message)) {
+    return "Could not reach the server. Check your connection and try again."
+  }
+  if (/\b401\b|\b403\b/.test(message)) {
+    return "Your session has expired. Sign in again to save this ticket."
+  }
+  if (/\b422\b/.test(message)) {
+    return "The server rejected this ticket. Check the site and asset are still valid."
+  }
+  if (/\b5\d{2}\b/.test(message)) {
+    return "The server had a problem saving this ticket. Try again in a moment."
+  }
+  return "Could not save the ticket. Try again."
 }
 
 export function TicketEntryForm() {
@@ -64,7 +57,6 @@ export function TicketEntryForm() {
   const [locationId, setLocationId] = useState("")
   const [assetId, setAssetId] = useState("")
   const [clientCategory, setClientCategory] = useState(clientCategories[0])
-  const [faultCategory, setFaultCategory] = useState(faultCategories[0][0])
   const [priority, setPriority] = useState<Priority>("Medium")
   const [title, setTitle] = useState("")
   const [complaint, setComplaint] = useState("")
@@ -90,11 +82,9 @@ export function TicketEntryForm() {
 
         setLocations(locs)
         setAssets(asts)
-      } catch (err) {
+      } catch {
         if (cancelled) return
-        setRefError(
-          err instanceof Error ? err.message : "Could not load sites and assets.",
-        )
+        setRefError("Could not load sites and assets.")
       } finally {
         if (!cancelled) setLoadingRefs(false)
       }
@@ -122,7 +112,6 @@ export function TicketEntryForm() {
     setTitle("")
     setComplaint("")
     setPriority("Medium")
-    setFaultCategory(faultCategories[0][0])
     setClientCategory(clientCategories[0])
   }
 
@@ -141,7 +130,6 @@ export function TicketEntryForm() {
       `Date reported: ${dateReported}`,
       `Raised by: ${raisedBy.trim() || "Not recorded"}`,
       `Client category: ${clientCategory}`,
-      `Fault category: ${faultCategory}`,
       "",
       complaint.trim() || "No further detail on the sheet.",
     ]
@@ -158,9 +146,7 @@ export function TicketEntryForm() {
       setSaved(created.title)
       resetForNextSheet()
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not save the ticket. Try again.",
-      )
+      setError(readableError(err instanceof Error ? err.message : ""))
     } finally {
       setSubmitting(false)
     }
@@ -284,23 +270,6 @@ export function TicketEntryForm() {
           </select>
         </label>
       </div>
-
-      <label className="block space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">
-          Fault category
-        </span>
-        <select
-          value={faultCategory}
-          onChange={(e) => setFaultCategory(e.target.value)}
-          className={fieldClass}
-        >
-          {faultCategories.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <label className="block space-y-1">
         <span className="text-xs font-medium text-muted-foreground">

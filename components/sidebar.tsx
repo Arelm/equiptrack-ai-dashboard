@@ -14,10 +14,12 @@ import {
   LogOut,
   Package,
   MapPin,
+  FilePlus2,
 } from "lucide-react"
 
 const navItems = [
   { href: "/", label: "Operations Dashboard", icon: LayoutDashboard, desc: "Live ticket queue" },
+  { href: "/ticket-entry", label: "Enter a Ticket", icon: FilePlus2, desc: "From the morning printout" },
   { href: "/client-portal", label: "Client Portal", icon: ClipboardList, desc: "Submit & track requests" },
   { href: "/technician", label: "Technician App", icon: Wrench, desc: "Assigned field jobs" },
   { href: "/parts", label: "Parts & Inventory", icon: Package, desc: "Stock levels & receipts" },

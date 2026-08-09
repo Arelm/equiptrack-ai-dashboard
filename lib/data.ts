@@ -1,4 +1,4 @@
-export type Priority = "High" | "Medium" | "Low"
+export type Priority = "Critical" | "High" | "Medium" | "Low"
 export type Status = "Open" | "Assigned" | "In Progress" | "Resolved"
 
 export type Ticket = {

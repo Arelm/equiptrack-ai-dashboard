@@ -1,11 +1,10 @@
-"""EquipTrack fault report.
+"""EquipTrack fault report - terminal output.
 
 Run with a date range. Fleet counts are taken at the moment the script runs,
-not at PERIOD_END - so run it at month end for an accurate fleet number.
+not at the end of the period - so run it at month end for an accurate fleet
+number.
 
-Faults come from filed reports only, because that is the only place a
-diagnosis exists. Jobs closed without a report are counted separately so the
-numbers reconcile.
+The queries live in report_data.py. This file only prints.
 
 Filters
 -------
@@ -14,6 +13,7 @@ Filters
   --year YYYY       whole calendar year
   --site NAME       one site, matched on name (partial, case-insensitive)
   --asset NAME      one asset or group, matched on name (partial)
+  --csv PATH        also write the tables to CSV files alongside PATH
 
 Examples
 --------
@@ -24,15 +24,15 @@ Examples
 """
 
 import argparse
-import calendar
+import csv
 import os
 import sys
-from datetime import date
 
 import psycopg2
 
+from report_data import FilterError, collect_report, resolve_period
 
-# --- Arguments ------------------------------------------------------------
+
 def parse_args():
     p = argparse.ArgumentParser(description="EquipTrack fault report")
     p.add_argument("--start", help="Start date, YYYY-MM-DD")
@@ -41,46 +41,8 @@ def parse_args():
     p.add_argument("--year", help="Whole calendar year, YYYY")
     p.add_argument("--site", help="Filter to one site, matched on name")
     p.add_argument("--asset", help="Filter to assets whose name contains this")
+    p.add_argument("--csv", help="Write the tables to CSV files with this prefix")
     return p.parse_args()
-
-
-def resolve_period(args):
-    """Work out the reporting window. Defaults to the current month."""
-    if args.month:
-        y, m = (int(x) for x in args.month.split("-"))
-        last = calendar.monthrange(y, m)[1]
-        return f"{y:04d}-{m:02d}-01", f"{y:04d}-{m:02d}-{last:02d}"
-
-    if args.year:
-        y = int(args.year)
-        return f"{y:04d}-01-01", f"{y:04d}-12-31"
-
-    if args.start and args.end:
-        return args.start, args.end
-
-    if args.start or args.end:
-        sys.exit("Give both --start and --end, or use --month / --year.")
-
-    today = date.today()
-    last = calendar.monthrange(today.year, today.month)[1]
-    return (
-        f"{today.year:04d}-{today.month:02d}-01",
-        f"{today.year:04d}-{today.month:02d}-{last:02d}",
-    )
-
-
-args = parse_args()
-PERIOD_START, PERIOD_END = resolve_period(args)
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    sys.exit("DATABASE_URL not set.")
-
-conn = psycopg2.connect(DATABASE_URL)
-cur = conn.cursor()
-
-# End date is inclusive of the whole day.
-params = {"start": PERIOD_START, "end": PERIOD_END + " 23:59:59"}
 
 
 def show(title):
@@ -89,244 +51,141 @@ def show(title):
     print("=" * 62)
 
 
-# --- Resolve the site / asset filter to a list of asset ids ---------------
-# Every query below then filters the same way, so the sections stay
-# consistent with each other no matter which filter is applied.
-FILTERED = bool(args.site or args.asset)
-location_ids = None
-asset_ids = None
+def render_text(d):
+    print(f"Period : {d['period']['start']} to {d['period']['end']}")
+    print(f"Site   : {d['filters']['site_label']}")
+    print(f"Asset  : {d['filters']['asset_label']}")
 
-if args.site:
-    cur.execute(
-        'SELECT id, name FROM "Location" WHERE name ILIKE %s ORDER BY name;',
-        (f"%{args.site}%",),
+    show("Fleet")
+    fleet = d["fleet"]
+    print(f"Total units under care: {fleet['total']}")
+    for row in fleet["by_status"]:
+        print(f"  {row['status']:<20} {row['count']}")
+    print(
+        f"\nUnits that needed attention this period: {fleet['touched']}"
+        f" ({fleet['touched_pct']:.1f}% of fleet)"
     )
-    hits = cur.fetchall()
-    if not hits:
-        sys.exit(f"No site matches '{args.site}'.")
-    location_ids = [h[0] for h in hits]
-    site_label = ", ".join(h[1] for h in hits)
-else:
-    site_label = "all sites"
 
-asset_sql = 'SELECT id FROM "Asset" WHERE TRUE'
-asset_params = []
-if location_ids:
-    asset_sql += ' AND "locationId" = ANY(%s)'
-    asset_params.append(location_ids)
-if args.asset:
-    asset_sql += " AND name ILIKE %s"
-    asset_params.append(f"%{args.asset}%")
+    show("Activity")
+    act = d["activity"]
+    print(f"Reports filed: {act['reports_filed']}")
+    print(f"Jobs completed: {act['jobs_completed']}")
+    print(f"Closed without a report: {act['closed_without_report']}")
 
-if FILTERED:
-    cur.execute(asset_sql + ";", asset_params)
-    asset_ids = [r[0] for r in cur.fetchall()]
-    if not asset_ids:
-        sys.exit("No assets match that filter.")
-    params["assets"] = asset_ids
+    show("Most recurring faults")
+    if not d["faults"]:
+        print("No categorised reports in this period.")
+    for i, row in enumerate(d["faults"], 1):
+        print(f"{i:>2}. {row['category']:<24} {row['count']}")
 
-# SQL fragments that are empty when no filter is active.
-ML_F = ' AND ml."assetId" = ANY(%(assets)s)' if FILTERED else ""
-WO_F = ' AND wo."assetId" = ANY(%(assets)s)' if FILTERED else ""
+    show("Repeat offenders - same fault, same unit")
+    if not d["repeat_offenders"]:
+        print("None in this period.")
+    for row in d["repeat_offenders"]:
+        loc = row["location"] or "no location"
+        print(f"{row['count']}x  {row['category']:<24} {row['asset']}  [{loc}]")
 
-asset_label = args.asset if args.asset else "all assets"
+    show("Units by total jobs")
+    for i, row in enumerate(d["workload"], 1):
+        loc = row["location"] or "no location"
+        print(f"{i:>2}. {row['jobs']:>3} jobs  {row['asset']}  [{loc}]")
 
-print(f"Period : {PERIOD_START} to {PERIOD_END}")
-print(f"Site   : {site_label}")
-print(f"Asset  : {asset_label}")
-
-# --- 1. Fleet -------------------------------------------------------------
-show("Fleet")
-if FILTERED:
-    cur.execute('SELECT count(*) FROM "Asset" WHERE id = ANY(%(assets)s);', params)
-else:
-    cur.execute('SELECT count(*) FROM "Asset";')
-total_assets = cur.fetchone()[0]
-print(f"Total units under care: {total_assets}")
-
-if FILTERED:
-    cur.execute(
-        'SELECT status, count(*) FROM "Asset" WHERE id = ANY(%(assets)s)'
-        " GROUP BY status ORDER BY 2 DESC;",
-        params,
-    )
-else:
-    cur.execute('SELECT status, count(*) FROM "Asset" GROUP BY status ORDER BY 2 DESC;')
-for status, n in cur.fetchall():
-    print(f"  {status:<20} {n}")
-
-cur.execute(
-    f"""
-    SELECT count(DISTINCT ml."assetId") FROM "MaintenanceLog" ml
-    WHERE ml."createdAt" BETWEEN %(start)s AND %(end)s
-      AND ml."assetId" IS NOT NULL{ML_F};
-""",
-    params,
-)
-touched = cur.fetchone()[0]
-pct = (touched / total_assets * 100) if total_assets else 0
-print(f"\nUnits that needed attention this period: {touched} ({pct:.1f}% of fleet)")
-
-# --- 2. Activity ----------------------------------------------------------
-show("Activity")
-cur.execute(
-    f"""
-    SELECT count(*) FROM "MaintenanceLog" ml
-    WHERE ml."createdAt" BETWEEN %(start)s AND %(end)s{ML_F};
-""",
-    params,
-)
-print(f"Reports filed: {cur.fetchone()[0]}")
-
-cur.execute(
-    f"""
-    SELECT count(*) FROM "WorkOrder" wo
-    WHERE wo."completedAt" BETWEEN %(start)s AND %(end)s{WO_F};
-""",
-    params,
-)
-completed = cur.fetchone()[0]
-print(f"Jobs completed: {completed}")
-
-cur.execute(
-    f"""
-    SELECT count(*) FROM "WorkOrder" wo
-    WHERE wo."completedAt" BETWEEN %(start)s AND %(end)s{WO_F}
-      AND NOT EXISTS (
-        SELECT 1 FROM "MaintenanceLog" ml WHERE ml."workOrderId" = wo.id
-      );
-""",
-    params,
-)
-print(f"Closed without a report: {cur.fetchone()[0]}")
-
-# --- 3. Fault ranking -----------------------------------------------------
-show("Most recurring faults")
-cur.execute(
-    f"""
-    SELECT ml."faultCategory", count(*) AS n
-    FROM "MaintenanceLog" ml
-    WHERE ml."createdAt" BETWEEN %(start)s AND %(end)s
-      AND ml."faultCategory" IS NOT NULL{ML_F}
-    GROUP BY ml."faultCategory"
-    ORDER BY n DESC;
-""",
-    params,
-)
-rows = cur.fetchall()
-if not rows:
-    print("No categorised reports in this period.")
-for i, (fault, n) in enumerate(rows, 1):
-    print(f"{i:>2}. {fault:<24} {n}")
-
-# --- 4. Repeat offenders --------------------------------------------------
-show("Repeat offenders - same fault, same unit")
-cur.execute(
-    f"""
-    SELECT a.name, l.name, ml."faultCategory", count(*) AS n
-    FROM "MaintenanceLog" ml
-    JOIN "Asset" a ON a.id = ml."assetId"
-    LEFT JOIN "Location" l ON l.id = a."locationId"
-    WHERE ml."createdAt" BETWEEN %(start)s AND %(end)s
-      AND ml."faultCategory" IS NOT NULL{ML_F}
-    GROUP BY a.name, l.name, ml."faultCategory"
-    HAVING count(*) > 1
-    ORDER BY n DESC;
-""",
-    params,
-)
-rows = cur.fetchall()
-if not rows:
-    print("None in this period.")
-for asset, loc, fault, n in rows:
-    print(f"{n}x  {fault:<24} {asset}  [{loc or 'no location'}]")
-
-# --- 5. Workload ----------------------------------------------------------
-show("Units by total jobs")
-cur.execute(
-    f"""
-    SELECT a.name, l.name, count(*) AS n
-    FROM "MaintenanceLog" ml
-    JOIN "Asset" a ON a.id = ml."assetId"
-    LEFT JOIN "Location" l ON l.id = a."locationId"
-    WHERE ml."createdAt" BETWEEN %(start)s AND %(end)s{ML_F}
-    GROUP BY a.name, l.name
-    ORDER BY n DESC
-    LIMIT 20;
-""",
-    params,
-)
-for i, (asset, loc, n) in enumerate(cur.fetchall(), 1):
-    print(f"{i:>2}. {n:>3} jobs  {asset}  [{loc or 'no location'}]")
-
-# --- 6. By location -------------------------------------------------------
-show("By location")
-loc_sql = 'SELECT l.id, l.name, l.client FROM "Location" l WHERE l."isActive" IS NOT FALSE'
-loc_params = []
-if location_ids:
-    loc_sql += " AND l.id = ANY(%s)"
-    loc_params.append(location_ids)
-loc_sql += " ORDER BY l.name;"
-cur.execute(loc_sql, loc_params)
-
-for loc_id, loc_name, client in cur.fetchall():
-    p = dict(params, loc=loc_id)
-
-    cur.execute(
-        f"""
-        SELECT count(*) FROM "MaintenanceLog" ml
-        JOIN "Asset" a ON a.id = ml."assetId"
-        WHERE a."locationId" = %(loc)s
-          AND ml."createdAt" BETWEEN %(start)s AND %(end)s{ML_F};
-    """,
-        p,
-    )
-    jobs = cur.fetchone()[0]
-
-    if FILTERED:
-        cur.execute(
-            'SELECT count(*) FROM "Asset" WHERE "locationId" = %s'
-            " AND id = ANY(%s);",
-            (loc_id, asset_ids),
+    show("By location")
+    for loc in d["locations"]:
+        client = loc["client"] or "no client"
+        print(
+            f"\n{loc['name']}  ({client})  -  {loc['units']} units, {loc['jobs']} jobs"
         )
-    else:
-        cur.execute('SELECT count(*) FROM "Asset" WHERE "locationId" = %s;', (loc_id,))
-    units = cur.fetchone()[0]
+        if not loc["jobs"]:
+            continue
+        for row in loc["faults"]:
+            print(f"    {row['count']:>3}  {row['category']}")
+        print("    worst units:")
+        for row in loc["worst_units"]:
+            print(f"      {row['jobs']:>3} jobs  {row['asset']}")
 
-    print(f"\n{loc_name}  ({client or 'no client'})  -  {units} units, {jobs} jobs")
-    if jobs == 0:
-        continue
+    print()
 
-    cur.execute(
-        f"""
-        SELECT ml."faultCategory", count(*) AS n
-        FROM "MaintenanceLog" ml
-        JOIN "Asset" a ON a.id = ml."assetId"
-        WHERE a."locationId" = %(loc)s
-          AND ml."createdAt" BETWEEN %(start)s AND %(end)s
-          AND ml."faultCategory" IS NOT NULL{ML_F}
-        GROUP BY ml."faultCategory" ORDER BY n DESC LIMIT 5;
-    """,
-        p,
-    )
-    for fault, n in cur.fetchall():
-        print(f"    {n:>3}  {fault}")
 
-    cur.execute(
-        f"""
-        SELECT a.name, count(*) AS n
-        FROM "MaintenanceLog" ml
-        JOIN "Asset" a ON a.id = ml."assetId"
-        WHERE a."locationId" = %(loc)s
-          AND ml."createdAt" BETWEEN %(start)s AND %(end)s{ML_F}
-        GROUP BY a.name ORDER BY n DESC LIMIT 3;
-    """,
-        p,
-    )
-    print("    worst units:")
-    for asset, n in cur.fetchall():
-        print(f"      {n:>3} jobs  {asset}")
+def write_csv(d, prefix):
+    """Write each table to its own CSV file, named from the prefix."""
+    base, _ = os.path.splitext(prefix)
+    written = []
 
-print()
-cur.close()
-conn.close()
+    tables = {
+        "faults": (["category", "count"], d["faults"]),
+        "repeat-offenders": (
+            ["asset", "location", "category", "count"],
+            d["repeat_offenders"],
+        ),
+        "workload": (["asset", "location", "jobs"], d["workload"]),
+        "locations": (
+            ["name", "client", "units", "jobs"],
+            [
+                {k: loc[k] for k in ("name", "client", "units", "jobs")}
+                for loc in d["locations"]
+            ],
+        ),
+    }
+
+    for name, (fields, rows) in tables.items():
+        path = f"{base}-{name}.csv"
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=fields)
+            w.writeheader()
+            w.writerows(rows)
+        written.append(path)
+
+    # Summary is a single row, so it gets a key/value shape instead.
+    path = f"{base}-summary.csv"
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["field", "value"])
+        w.writerow(["period_start", d["period"]["start"]])
+        w.writerow(["period_end", d["period"]["end"]])
+        w.writerow(["site", d["filters"]["site_label"]])
+        w.writerow(["asset", d["filters"]["asset_label"]])
+        w.writerow(["total_units", d["fleet"]["total"]])
+        w.writerow(["units_touched", d["fleet"]["touched"]])
+        w.writerow(["reports_filed", d["activity"]["reports_filed"]])
+        w.writerow(["jobs_completed", d["activity"]["jobs_completed"]])
+        w.writerow(
+            ["closed_without_report", d["activity"]["closed_without_report"]]
+        )
+    written.append(path)
+
+    print("CSV written:")
+    for p in written:
+        print(f"  {p}")
+
+
+def main():
+    args = parse_args()
+
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        sys.exit("DATABASE_URL not set.")
+
+    try:
+        start, end = resolve_period(
+            start=args.start, end=args.end, month=args.month, year=args.year
+        )
+    except FilterError as e:
+        sys.exit(str(e))
+
+    conn = psycopg2.connect(database_url)
+    try:
+        data = collect_report(conn, start, end, site=args.site, asset=args.asset)
+    except FilterError as e:
+        sys.exit(str(e))
+    finally:
+        conn.close()
+
+    render_text(data)
+
+    if args.csv:
+        write_csv(data, args.csv)
+
+
+if __name__ == "__main__":
+    main()

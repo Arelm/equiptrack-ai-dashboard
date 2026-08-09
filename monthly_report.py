@@ -1,4 +1,4 @@
-"""EquipTrack fault report - terminal output.
+﻿"""EquipTrack fault report - terminal output.
 
 Run with a date range. Fleet counts are taken at the moment the script runs,
 not at the end of the period - so run it at month end for an accurate fleet
@@ -30,7 +30,7 @@ import sys
 
 import psycopg2
 
-from report_data import FilterError, collect_report, resolve_period
+from backend.report_data import FilterError, collect_report, resolve_period
 
 
 def parse_args():

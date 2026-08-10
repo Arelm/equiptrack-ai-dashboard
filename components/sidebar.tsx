@@ -15,10 +15,12 @@ import {
   Package,
   MapPin,
   FilePlus2,
+  BarChart3,
 } from "lucide-react"
 
 const navItems = [
   { href: "/", label: "Operations Dashboard", icon: LayoutDashboard, desc: "Live ticket queue" },
+  { href: "/fleet-report", label: "Fleet Report", icon: BarChart3, desc: "Register, activity & repeat failures" },
   { href: "/ticket-entry", label: "Enter a Ticket", icon: FilePlus2, desc: "From the morning printout" },
   { href: "/client-portal", label: "Client Portal", icon: ClipboardList, desc: "Submit & track requests" },
   { href: "/technician", label: "Technician App", icon: Wrench, desc: "Assigned field jobs" },

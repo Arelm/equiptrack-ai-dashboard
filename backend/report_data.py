@@ -16,6 +16,10 @@ Usage
     start, end = resolve_period(month="2026-08")
     conn = psycopg2.connect(DATABASE_URL)
     data = collect_report(conn, start, end, site="264")
+
+Pass organization_id to scope every section to one client's fleet. The API
+layer always passes it, taken from the caller's token rather than from a
+query parameter, so a signed-in user can never read another org's data.
 """
 
 import calendar
@@ -56,7 +60,7 @@ def resolve_period(start=None, end=None, month=None, year=None):
 
 
 # --- Filters --------------------------------------------------------------
-def _resolve_filters(cur, site, asset):
+def _resolve_filters(cur, site, asset, organization_id):
     """Turn a site / asset filter into a concrete list of asset ids.
 
     Every section then filters on the same list, so the fleet count, the
@@ -67,10 +71,12 @@ def _resolve_filters(cur, site, asset):
     site_label = "all sites"
 
     if site:
-        cur.execute(
-            'SELECT id, name FROM "Location" WHERE name ILIKE %s ORDER BY name;',
-            (f"%{site}%",),
-        )
+        sql = 'SELECT id, name FROM "Location" WHERE name ILIKE %s'
+        sql_params = [f"%{site}%"]
+        if organization_id:
+            sql += ' AND "organizationId" = %s'
+            sql_params.append(organization_id)
+        cur.execute(sql + " ORDER BY name;", sql_params)
         hits = cur.fetchall()
         if not hits:
             raise FilterError(f"No site matches '{site}'.")
@@ -78,9 +84,12 @@ def _resolve_filters(cur, site, asset):
         site_label = ", ".join(h[1] for h in hits)
 
     asset_ids = None
-    if site or asset:
+    if site or asset or organization_id:
         sql = 'SELECT id FROM "Asset" WHERE TRUE'
         sql_params = []
+        if organization_id:
+            sql += ' AND "organizationId" = %s'
+            sql_params.append(organization_id)
         if location_ids:
             sql += ' AND "locationId" = ANY(%s)'
             sql_params.append(location_ids)
@@ -97,11 +106,13 @@ def _resolve_filters(cur, site, asset):
 
 
 # --- Main entry point -----------------------------------------------------
-def collect_report(conn, start, end, site=None, asset=None):
+def collect_report(conn, start, end, site=None, asset=None, organization_id=None):
     """Run every section and return the results as a dict."""
     cur = conn.cursor()
 
-    location_ids, asset_ids, site_label = _resolve_filters(cur, site, asset)
+    location_ids, asset_ids, site_label = _resolve_filters(
+        cur, site, asset, organization_id
+    )
     filtered = asset_ids is not None
 
     # End date is inclusive of the whole day.
@@ -118,6 +129,7 @@ def collect_report(conn, start, end, site=None, asset=None):
         "filters": {
             "site": site,
             "asset": asset,
+            "organization_id": organization_id,
             "site_label": site_label,
             "asset_label": asset or "all assets",
         },
@@ -254,6 +266,9 @@ def collect_report(conn, start, end, site=None, asset=None):
         ' WHERE l."isActive" IS NOT FALSE'
     )
     loc_params = []
+    if organization_id:
+        loc_sql += ' AND l."organizationId" = %s'
+        loc_params.append(organization_id)
     if location_ids:
         loc_sql += " AND l.id = ANY(%s)"
         loc_params.append(location_ids)

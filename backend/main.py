@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     assets, workorders, alerts, technicians, ai, organizations,
-    locations, transfers, disposals, auth, assignments, reports, parts,
+    locations, transfers, disposals, auth, assignments, reports, parts, analytics,
 )
 
 app = FastAPI(
@@ -38,6 +38,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(disposals.router, prefix="/api/disposals", tags=["Disposals"])
 app.include_router(parts.router, prefix="/api/parts", tags=["Parts"])
 app.include_router(reports.router, prefix="/api", tags=["Field Reports"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
 
 @app.get("/")
 def root():

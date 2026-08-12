@@ -280,17 +280,35 @@ def update_workorder(
     is_manager = user.get("role") in MANAGER_ROLES
     new_status = update.status
     override_used = False
+    previous_status = wo.status.value if wo.status else None
     reason = (update.overrideReason or "").strip() or None
 
     if new_status and new_status != wo.status and not wo.isLegacy:
         assignment = active_assignment(db, wo_id)
 
-        # Gate 1
-        if wo.status == WorkOrderStatusEnum.OPEN and not assignment:
+        # Gate 1 — cancelling is exempt: a ticket raised in error should not
+        # need a technician assigned to it before it can be withdrawn.
+        if (wo.status == WorkOrderStatusEnum.OPEN and not assignment
+                and new_status != WorkOrderStatusEnum.CANCELLED):
             raise HTTPException(
                 status_code=409,
                 detail="Assign a technician before moving this job out of Open.",
             )
+        
+        # Cancelling withdraws a job from the client's record. Manager only,
+        # and it has to say why — an unexplained CANCELLED in a Sterling Oil
+        # report is worse than no cancellation at all.
+        if new_status == WorkOrderStatusEnum.CANCELLED:
+            if not is_manager:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only a manager can cancel a job.",
+                )
+            if not reason:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Cancelling requires a typed reason. It is written to the audit log.",
+                )
 
         # Gate 2
         if new_status == WorkOrderStatusEnum.COMPLETED:
@@ -343,6 +361,18 @@ def update_workorder(
             createdAt=_now(),
         ))
 
+    if new_status == WorkOrderStatusEnum.CANCELLED:
+        db.add(AuditLog(
+            id=str(uuid.uuid4()),
+            actorId=user["sub"],
+            action="workorder.cancelled",
+            entityType="WorkOrder",
+            entityId=wo_id,
+            reason=reason,
+            metadata_json=f"previous_status={previous_status}",
+            createdAt=_now(),
+        ))
+        
     wo.updatedAt = _now()
     db.commit()
     db.refresh(wo)
